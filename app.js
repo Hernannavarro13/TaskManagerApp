@@ -16,7 +16,7 @@ let currentFilter = 'all';
 let isSyncing = false;
 
 // API endpoint - Replace with your actual backend API URL when available
-const API_URL = 'http://localhost:3000/todos';
+const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
 
 // Initialize app
