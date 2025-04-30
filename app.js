@@ -9,6 +9,8 @@ const themeToggle = document.getElementById('themeToggle');
 const syncStatus = document.getElementById('syncStatus');
 const todoItemTemplate = document.getElementById('todo-item-template');
 const emptyStateTemplate = document.getElementById('empty-state-template');
+const registerForm = document.getElementById('registerForm');
+const loginForm = document.getElementById('loginForm');
 
 // App state
 let todos = [];
@@ -261,5 +263,75 @@ function updateItemsLeft() {
     itemsLeftSpan.textContent = `${activeCount} item${activeCount !== 1 ? 's' : ''} left`;
 }
 
+// Handle Register Form Submission
+registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); // Prevent form from reloading the page
+
+    const username = document.getElementById('usernameRegister').value;
+    const password = document.getElementById('passwordRegister').value;
+
+    const payload = { username, password };
+
+    try {
+        const response = await fetch(`${API_URL}/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert('Registration successful! Please log in.');
+        } else {
+            alert(data.message || 'Registration failed');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Registration failed');
+    }
+});
+
+// Handle Login Form Submission
+loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault(); // Prevent form from reloading the page
+
+    const username = document.getElementById('usernameLogin').value;
+    const password = document.getElementById('passwordLogin').value;
+
+    const payload = { username, password };
+
+    try {
+        const response = await fetch(`${API_URL}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            // Save the JWT token (e.g., in localStorage or sessionStorage)
+            localStorage.setItem('authToken', data.token);
+            alert('Login successful!');
+            window.location.href = '/tasks'; // Or any other route to redirect to
+        } else {
+            alert(data.message || 'Login failed');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Login failed');
+    }
+});
+// Check if user is logged in
+const authToken = localStorage.getItem('authToken');
+
+if (authToken) {
+    document.body.classList.add('logged-in');
+} else {
+    document.body.classList.remove('logged-in');
+}
 // Initialize the app
 initApp();
