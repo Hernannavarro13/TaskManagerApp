@@ -390,3 +390,13 @@ body:not([data-theme="dark"]) .moon-icon {
         gap: 0.5rem;
     }
 }
+/* Hide the register and login forms by default */
+#registerFormContainer, #loginFormContainer {
+    display: none;
+}
+
+/* When the user is not logged in, show the forms */
+body:not(.logged-in) #registerFormContainer, 
+body:not(.logged-in) #loginFormContainer {
+    display: block;
+}
