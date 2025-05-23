@@ -67,37 +67,17 @@ let charts = {};
 // API endpoint - Replace with your actual backend API URL when available
 const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
-// Initialize auth screen
-function initAuthScreen() {
-    if (authScreen) {
-        authScreen.style.display = 'block';
-    }
-    if (todoApp) {
-        todoApp.style.display = 'none';
-    }
-}
-
-// Initialize todo app screen
-function initTodoAppScreen() {
-    if (authScreen) {
-        authScreen.style.display = 'none';
-    }
-    if (todoApp) {
-        todoApp.style.display = 'block';
-    }
-}
-
 // Initialize app
 async function initApp() {
     // Check authentication first
     const authToken = localStorage.getItem('authToken');
     
     if (!authToken) {
-        initAuthScreen();
+        if (todoApp) todoApp.style.display = 'none';
         return;
     }
     
-    initTodoAppScreen();
+    if (todoApp) todoApp.style.display = 'block';
     
     // Set theme from localStorage or default to light
     const savedTheme = localStorage.getItem('theme') || 'light';
@@ -1431,148 +1411,5 @@ document.addEventListener('DOMContentLoaded', () => {
         initAdditionalFeatures();
         setupSearchAndFilter();
         setupTaskDetailsModal();
-    });
-});
-
-// Auth Screen Functionality
-document.addEventListener('DOMContentLoaded', () => {
-    const authScreen = document.querySelector('.auth-screen');
-    const authTabs = document.querySelectorAll('.auth-tab');
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    const tabSlider = document.querySelector('.auth-tab-slider');
-    
-    // Gradient controls
-    const gradientEnabled = document.getElementById('gradientEnabled');
-    const startColor = document.getElementById('startColor');
-    const middleColor = document.getElementById('middleColor');
-    const endColor = document.getElementById('endColor');
-
-    // Tab switching
-    authTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const isRegister = tab.dataset.tab === 'register';
-            
-            // Update active tab
-            authTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // Move slider
-            tabSlider.classList.toggle('register', isRegister);
-            
-            // Show/hide forms
-            loginForm.style.display = isRegister ? 'none' : 'flex';
-            registerForm.style.display = isRegister ? 'flex' : 'none';
-            
-            // Toggle gradient background
-            if (isRegister && gradientEnabled.checked) {
-                authScreen.classList.add('gradient-bg');
-            } else if (!isRegister) {
-                authScreen.classList.remove('gradient-bg');
-            }
-        });
-    });
-
-    // Gradient controls functionality
-    gradientEnabled.addEventListener('change', () => {
-        if (gradientEnabled.checked) {
-            authScreen.classList.add('gradient-bg');
-            updateGradient();
-        } else {
-            authScreen.classList.remove('gradient-bg');
-        }
-    });
-
-    [startColor, middleColor, endColor].forEach(input => {
-        input.addEventListener('input', updateGradient);
-    });
-
-    function updateGradient() {
-        document.documentElement.style.setProperty('--gradient-start', startColor.value);
-        document.documentElement.style.setProperty('--gradient-middle', middleColor.value);
-        document.documentElement.style.setProperty('--gradient-end', endColor.value);
-    }
-
-    // Login form submission
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('usernameLogin').value;
-        const password = document.getElementById('passwordLogin').value;
-
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Store token and settings
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('userId', data.userId);
-                if (data.settings) {
-                    localStorage.setItem('userSettings', JSON.stringify(data.settings));
-                }
-                
-                // Redirect to main app
-                document.querySelector('.auth-screen').style.display = 'none';
-                document.querySelector('.todo-app').style.display = 'block';
-                initializeApp(); // Function to initialize the main app
-            } else {
-                alert(data.message);
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            alert('An error occurred during login');
-        }
-    });
-
-    // Register form submission
-    registerForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('usernameRegister').value;
-        const password = document.getElementById('passwordRegister').value;
-
-        // Get gradient settings
-        const gradient = {
-            isEnabled: gradientEnabled.checked,
-            startColor: startColor.value,
-            middleColor: middleColor.value,
-            endColor: endColor.value
-        };
-
-        try {
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    username,
-                    password,
-                    gradient
-                })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Switch to login tab
-                authTabs[0].click();
-                alert('Registration successful! Please login.');
-                
-                // Clear form
-                registerForm.reset();
-            } else {
-                alert(data.message);
-            }
-        } catch (error) {
-            console.error('Registration error:', error);
-            alert('An error occurred during registration');
-        }
     });
 });
