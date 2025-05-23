@@ -4,7 +4,6 @@ const authTabs = document.querySelectorAll('.auth-tab');
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const tabSlider = document.querySelector('.auth-tab-slider');
-const gradientEnabled = document.getElementById('gradientEnabled');
 const startColor = document.getElementById('startColor');
 const middleColor = document.getElementById('middleColor');
 const endColor = document.getElementById('endColor');
@@ -29,39 +28,12 @@ function initAuth() {
             // Show/hide forms
             loginForm.style.display = isRegister ? 'none' : 'flex';
             registerForm.style.display = isRegister ? 'flex' : 'none';
-            
-            // Toggle gradient background
-            if (isRegister && gradientEnabled.checked) {
-                authScreen.classList.add('gradient-bg');
-            } else if (!isRegister) {
-                authScreen.classList.remove('gradient-bg');
-            }
         });
-    });
-
-    // Gradient controls functionality
-    gradientEnabled.addEventListener('change', () => {
-        if (gradientEnabled.checked) {
-            authScreen.classList.add('gradient-bg');
-            updateGradient();
-        } else {
-            authScreen.classList.remove('gradient-bg');
-        }
-    });
-
-    [startColor, middleColor, endColor].forEach(input => {
-        input.addEventListener('input', updateGradient);
     });
 
     // Form submissions
     loginForm.addEventListener('submit', handleLogin);
     registerForm.addEventListener('submit', handleRegister);
-}
-
-function updateGradient() {
-    document.documentElement.style.setProperty('--gradient-start', startColor.value);
-    document.documentElement.style.setProperty('--gradient-middle', middleColor.value);
-    document.documentElement.style.setProperty('--gradient-end', endColor.value);
 }
 
 async function handleLogin(e) {
@@ -87,7 +59,14 @@ async function handleLogin(e) {
                 localStorage.setItem('userSettings', JSON.stringify(data.settings));
             }
             
-            window.location.reload();
+            // Hide auth screen and show todo app
+            authScreen.style.display = 'none';
+            document.querySelector('.todo-app').style.display = 'block';
+            
+            // Initialize the todo app
+            if (typeof initApp === 'function') {
+                initApp();
+            }
         } else {
             alert(data.message || 'Login failed');
         }
@@ -102,8 +81,7 @@ async function handleRegister(e) {
     const username = document.getElementById('usernameRegister').value;
     const password = document.getElementById('passwordRegister').value;
 
-    const gradient = {
-        isEnabled: gradientEnabled.checked,
+    const settings = {
         startColor: startColor.value,
         middleColor: middleColor.value,
         endColor: endColor.value
@@ -118,7 +96,7 @@ async function handleRegister(e) {
             body: JSON.stringify({
                 username,
                 password,
-                gradient
+                settings
             })
         });
 
