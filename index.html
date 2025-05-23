@@ -3,86 +3,474 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo List Application</title>
+    <title>Task Manager App</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Todo List</h1>
-            <p class="app-description">Stay organized and productive</p>
-            <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme">
-                <!-- SVG icons for light/dark theme toggle -->
-            </button>
-        </header>
-        
-        <form class="todo-form">
-            <input 
-                type="text" 
-                class="todo-input" 
-                placeholder="Add a new task..."
-                autofocus
-            >
-            <button type="submit" class="add-button">Add</button>
-        </form>
-        
-        <div class="filters">
-            <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="active">Active</button>
-            <button class="filter-btn" data-filter="completed">Completed</button>
-        </div>
-        
-        <ul class="todo-list">
-            <!-- Todo items will be added here dynamically -->
-        </ul>
-        
-        <div class="app-footer">
-            <span class="items-left">0 items left</span>
-            <div class="sync-status" id="syncStatus">
-                <span class="sync-message">Synced</span>
-                <div class="sync-spinner"></div>
+<body data-theme="light">
+    <!-- Auth Screen -->
+    <div class="auth-screen">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1>Task Manager</h1>
+                <p>Manage your tasks efficiently</p>
             </div>
-            <button class="clear-completed">Clear completed</button>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Login</button>
+                <button class="auth-tab" data-tab="register">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <input type="text" id="usernameLogin" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="passwordLogin" placeholder="Password" required>
+                </div>
+                <button type="submit" class="auth-button">Login</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <input type="text" id="usernameRegister" placeholder="Choose Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="passwordRegister" placeholder="Choose Password" required>
+                </div>
+                <button type="submit" class="auth-button">Register</button>
+            </form>
         </div>
     </div>
 
-    <!-- Register Form -->
-    <div id="registerFormContainer">
-        <form id="registerForm">
-            <input type="text" id="usernameRegister" placeholder="Username" required />
-            <input type="password" id="passwordRegister" placeholder="Password" required />
-            <button type="submit">Register</button>
-        </form>
-    </div>
+    <!-- Todo App -->
+    <div class="todo-app" style="display: none;">
+        <!-- SVG Definitions -->
+        <svg width="0" height="0" class="hidden">
+            <defs>
+                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="var(--gradient-1)" />
+                    <stop offset="100%" stop-color="var(--gradient-2)" />
+                </linearGradient>
+            </defs>
+        </svg>
 
-    <!-- Login Form -->
-    <div id="loginFormContainer">
-        <form id="loginForm">
-            <input type="text" id="usernameLogin" placeholder="Username" required />
-            <input type="password" id="passwordLogin" placeholder="Password" required />
-            <button type="submit">Login</button>
-        </form>
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <h1>TODO</h1>
+                    <button id="themeToggle" aria-label="Toggle theme">
+                        <img src="images/icon-sun.svg" alt="Theme icon" class="theme-icon">
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="container main-grid">
+                <!-- Left Section: Todo List -->
+                <div class="todo-section">
+                    <!-- New Todo Form -->
+                    <form class="todo-form">
+                        <div class="checkbox-wrapper">
+                            <div class="custom-checkbox"></div>
+                        </div>
+                        <input type="text" class="todo-input" placeholder="Create a new todo...">
+                    </form>
+
+                    <!-- Todo List -->
+                    <div class="todo-list-wrapper">
+                        <ul class="todo-list"></ul>
+
+                        <!-- Todo Controls -->
+                        <div class="todo-controls">
+                            <span class="items-left">0 items left</span>
+                            <div class="filter-buttons">
+                                <button class="filter-btn active" data-filter="all">All</button>
+                                <button class="filter-btn" data-filter="active">Active</button>
+                                <button class="filter-btn" data-filter="completed">Completed</button>
+                            </div>
+                            <button class="clear-completed">Clear Completed</button>
+                        </div>
+                    </div>
+
+                    <div id="syncStatus" class="sync-status">
+                        <span class="sync-message">Synced</span>
+                    </div>
+                </div>
+
+                <!-- Right Section: Progress & Calendar -->
+                <div class="progress-section">
+                    <!-- Progress Circle -->
+                    <div class="progress-container">
+                        <div class="progress-circle">
+                            <svg class="progress-ring" width="120" height="120">
+                                <circle class="progress-ring-circle-bg" cx="60" cy="60" r="54" />
+                                <circle class="progress-ring-circle" cx="60" cy="60" r="54" />
+                            </svg>
+                            <div class="progress-content">
+                                <span class="progress-percentage">0%</span>
+                                <span class="progress-label">Complete</span>
+                            </div>
+                        </div>
+                        <div class="progress-stats">
+                            <div class="stat-item">
+                                <span class="stat-value" id="tasksCompleted">0</span>
+                                <span class="stat-label">Completed</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="tasksRemaining">0</span>
+                                <span class="stat-label">Remaining</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Calendar View -->
+                    <div class="calendar-container">
+                        <div class="calendar-navigation">
+                            <div class="calendar-nav-group">
+                                <button class="calendar-nav" id="prevMonth">&lt;</button>
+                                <div class="calendar-date-picker">
+                                    <input type="text" id="calendarDatePicker" readonly>
+                                    <div class="mini-calendar" id="miniCalendar"></div>
+                                </div>
+                                <button class="calendar-nav" id="nextMonth">&gt;</button>
+                            </div>
+                            <div class="calendar-quick-nav">
+                                <button data-jump="today">Today</button>
+                                <button data-jump="work-week">Work Week</button>
+                                <button data-jump="weekend">Weekend</button>
+                            </div>
+                            <div class="calendar-view-options">
+                                <button class="calendar-view-btn active" data-view="month">Month</button>
+                                <button class="calendar-view-btn" data-view="week">Week</button>
+                                <button class="calendar-view-btn" data-view="day">Day</button>
+                            </div>
+                        </div>
+
+                        <!-- Calendar Navigation -->
+                        <div class="calendar-subheader">
+                            <div class="calendar-period-stats">
+                                <span class="period-total">Tasks: <span id="periodTotal">0</span></span>
+                                <span class="period-completed">Done: <span id="periodCompleted">0</span></span>
+                            </div>
+                        </div>
+
+                        <!-- Calendar Views -->
+                        <div class="calendar-views">
+                            <!-- Month View -->
+                            <div class="calendar-grid">
+                                <div class="calendar-weekday">Sun</div>
+                                <div class="calendar-weekday">Mon</div>
+                                <div class="calendar-weekday">Tue</div>
+                                <div class="calendar-weekday">Wed</div>
+                                <div class="calendar-weekday">Thu</div>
+                                <div class="calendar-weekday">Fri</div>
+                                <div class="calendar-weekday">Sat</div>
+                                <!-- Calendar days will be inserted by JavaScript -->
+                            </div>
+
+                            <!-- Day View -->
+                            <div class="calendar-day-view" style="display: none;">
+                                <div class="day-schedule">
+                                    <!-- Time slots will be inserted by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Week View -->
+                            <div class="calendar-week-view" style="display: none;">
+                                <div class="week-timeline">
+                                    <!-- Week timeline will be inserted by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Holiday Indicator -->
+                        <div class="holiday-indicator">
+                            <div class="holiday-icon">🎉</div>
+                            <div class="holiday-info">
+                                <span class="holiday-name"></span>
+                                <span class="holiday-date"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Year Progress -->
+                    <div class="year-progress">
+                        <h3>Year Progress</h3>
+                        <div class="year-progress-bar">
+                            <div class="year-progress-fill"></div>
+                        </div>
+                        <div class="year-stats">
+                            <span class="year-total">Total Tasks: <span id="yearTotal">0</span></span>
+                            <span class="year-completed">Completed: <span id="yearCompleted">0</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Confetti Canvas -->
+        <canvas id="confetti-canvas"></canvas>
     </div>
 
     <!-- Templates -->
     <template id="todo-item-template">
         <li class="todo-item">
-            <input type="checkbox" class="todo-checkbox">
+            <div class="checkbox-wrapper">
+                <input type="checkbox" class="todo-checkbox">
+                <div class="custom-checkbox"></div>
+            </div>
             <span class="todo-text"></span>
-            <button class="delete-btn">×</button>
+            <button class="delete-btn" aria-label="Delete todo">×</button>
         </li>
     </template>
 
     <template id="empty-state-template">
         <div class="empty-state">
-            <i class="empty-icon"></i>
-            <p class="empty-title"></p>
+            <span class="empty-icon"></span>
+            <h2 class="empty-title"></h2>
             <p class="empty-description"></p>
         </div>
     </template>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <template id="task-item-template">
+        <div class="task-item">
+            <div class="task-time"></div>
+            <div class="task-content">
+                <div class="task-text"></div>
+                <div class="task-labels"></div>
+            </div>
+            <div class="task-priority"></div>
+        </div>
+    </template>
+
+    <!-- Task Manager Header -->
+    <div class="task-manager-header">
+        <div class="search-filter-bar">
+            <div class="search-box">
+                <input type="text" id="taskSearch" placeholder="Search tasks...">
+                <button class="search-btn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <div class="filter-dropdown">
+                <button class="filter-btn" id="filterDropdownBtn">
+                    <i class="fas fa-filter"></i>
+                    Filters
+                </button>
+                <div class="filter-menu" id="filterMenu">
+                    <div class="filter-section">
+                        <h4>Categories</h4>
+                        <div id="categoryFilters" class="filter-options">
+                            <!-- Categories will be added dynamically -->
+                        </div>
+                        <button class="add-category-btn" id="addCategoryBtn">
+                            <i class="fas fa-plus"></i> Add Category
+                        </button>
+                    </div>
+                    <div class="filter-section">
+                        <h4>Priority</h4>
+                        <div class="filter-options">
+                            <label><input type="checkbox" value="high"> High</label>
+                            <label><input type="checkbox" value="medium"> Medium</label>
+                            <label><input type="checkbox" value="low"> Low</label>
+                        </div>
+                    </div>
+                    <div class="filter-section">
+                        <h4>Status</h4>
+                        <div class="filter-options">
+                            <label><input type="checkbox" value="pending"> Pending</label>
+                            <label><input type="checkbox" value="completed"> Completed</label>
+                            <label><input type="checkbox" value="recurring"> Recurring</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Details Modal -->
+    <div class="modal" id="taskDetailsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Task Details</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="taskDetailsForm">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Due Date</label>
+                            <input type="datetime-local" name="dueDate">
+                        </div>
+                        <div class="form-group">
+                            <label>Priority</label>
+                            <select name="priority">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <div class="category-selector">
+                            <select name="category" id="categorySelect"></select>
+                            <button type="button" class="add-category-btn" id="addCategoryInModal">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Recurrence</label>
+                        <div class="recurrence-options">
+                            <select name="recurrenceType">
+                                <option value="none">None</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <div class="custom-recurrence" style="display: none;">
+                                <input type="number" name="recurrenceInterval" min="1">
+                                <select name="recurrenceUnit">
+                                    <option value="days">Days</option>
+                                    <option value="weeks">Weeks</option>
+                                    <option value="months">Months</option>
+                                </select>
+                            </div>
+                            <div class="recurrence-end">
+                                <label>
+                                    <input type="radio" name="recurrenceEnd" value="never" checked>
+                                    Never
+                                </label>
+                                <label>
+                                    <input type="radio" name="recurrenceEnd" value="after">
+                                    After
+                                    <input type="number" name="recurrenceCount" min="1" disabled>
+                                    occurrences
+                                </label>
+                                <label>
+                                    <input type="radio" name="recurrenceEnd" value="on">
+                                    On
+                                    <input type="date" name="recurrenceEndDate" disabled>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Reminders</label>
+                        <div class="reminder-options">
+                            <select name="reminderTime">
+                                <option value="0">At time of event</option>
+                                <option value="5">5 minutes before</option>
+                                <option value="15">15 minutes before</option>
+                                <option value="30">30 minutes before</option>
+                                <option value="60">1 hour before</option>
+                                <option value="1440">1 day before</option>
+                            </select>
+                            <button type="button" class="add-reminder-btn">
+                                <i class="fas fa-plus"></i> Add Reminder
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="save-btn">Save</button>
+                        <button type="button" class="delete-btn">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Panel -->
+    <div class="statistics-panel">
+        <div class="stats-header">
+            <h3>Task Statistics</h3>
+            <select id="statsTimeRange">
+                <option value="day">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+            </select>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Completion Rate</div>
+                <div class="stat-value" id="completionRate">0%</div>
+                <canvas id="completionChart"></canvas>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Tasks by Priority</div>
+                <canvas id="priorityChart"></canvas>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Category Distribution</div>
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Productivity Hours</div>
+                <canvas id="productivityChart"></canvas>
+            </div>
+        </div>
+        <div class="stats-summary">
+            <div class="summary-item">
+                <span class="summary-label">Most Productive Day</span>
+                <span class="summary-value" id="productiveDay">-</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Average Daily Tasks</span>
+                <span class="summary-value" id="avgDailyTasks">0</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Longest Streak</span>
+                <span class="summary-value" id="longestStreak">0 days</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Management Modal -->
+    <div class="modal" id="categoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Manage Categories</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="category-list" id="categoryList">
+                    <!-- Categories will be listed here -->
+                </div>
+                <form id="addCategoryForm">
+                    <div class="form-group">
+                        <input type="text" id="newCategoryName" placeholder="New category name">
+                        <input type="color" id="newCategoryColor" value="#4361ee">
+                        <button type="submit">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="app.js"></script>
+
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- Add Chart.js for statistics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
 </html>
 
