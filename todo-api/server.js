@@ -10,10 +10,24 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// MongoDB Connection
+// MongoDB Connection with error handling
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/task-manager', {
   useNewUrlParser: true,
   useUnifiedTopology: true
+})
+.then(() => console.log('Successfully connected to MongoDB.'))
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+  process.exit(1);
+});
+
+// Add error handler for MongoDB connection errors
+mongoose.connection.on('error', err => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
 });
 
 // Models
@@ -23,7 +37,13 @@ const userSchema = new mongoose.Schema({
   settings: {
     defaultView: { type: String, enum: ['day', 'week', 'month'], default: 'month' },
     defaultCategory: { type: String, default: 'default' },
-    theme: { type: String, default: 'light' }
+    theme: { type: String, default: 'light' },
+    gradient: {
+      isEnabled: { type: Boolean, default: true },
+      startColor: { type: String, default: '#4158D0' },
+      middleColor: { type: String, default: '#C850C0' },
+      endColor: { type: String, default: '#FFCC70' }
+    }
   },
   categories: [{ 
     name: String, 
@@ -100,24 +120,57 @@ function verifyToken(req, res, next) {
 // Authentication Routes
 app.post('/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    console.log('Registration attempt:', { username: req.body.username });
+    const { username, password, gradient } = req.body;
 
     if (!username || !password) {
+      console.log('Registration failed: Missing credentials');
       return res.status(400).json({ message: 'Username and password required' });
     }
 
+    // Validate username and password
+    if (username.length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters long' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    // Check if user already exists
     const existingUser = await User.findOne({ username });
     if (existingUser) {
+      console.log('Registration failed: Username already exists');
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    // Hash password and create user with gradient settings
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword });
-    await user.save();
+    const user = new User({ 
+      username, 
+      password: hashedPassword,
+      settings: {
+        defaultView: 'month',
+        defaultCategory: 'default',
+        theme: 'light',
+        gradient: gradient || {
+          isEnabled: true,
+          startColor: '#4158D0',
+          middleColor: '#C850C0',
+          endColor: '#FFCC70'
+        }
+      },
+      categories: [{ name: 'default', color: '#808080' }],
+      labels: []
+    });
+
+    // Save the user
+    const savedUser = await user.save();
+    console.log('User created successfully:', { userId: savedUser._id });
 
     // Initialize statistics for new user
     const statistics = new Statistics({
-      userId: user._id,
+      userId: savedUser._id,
       completionRate: 0,
       streak: 0,
       totalTasks: 0,
@@ -125,10 +178,20 @@ app.post('/register', async (req, res) => {
       categoryDistribution: new Map()
     });
     await statistics.save();
+    console.log('Statistics initialized for user:', { userId: savedUser._id });
 
-    res.status(201).json({ message: 'User registered successfully' });
+    // Return user settings along with the registration success message
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      userId: savedUser._id,
+      settings: savedUser.settings
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ 
+      message: 'Server error during registration', 
+      error: error.message 
+    });
   }
 });
 
@@ -147,7 +210,12 @@ app.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
-    res.json({ message: 'Login successful', token, userId: user._id });
+    res.json({ 
+      message: 'Login successful', 
+      token, 
+      userId: user._id,
+      settings: user.settings
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -318,6 +386,36 @@ app.get('/tasks/reminders', verifyToken, async (req, res) => {
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Add a new endpoint to update gradient settings
+app.put('/user/gradient', verifyToken, async (req, res) => {
+  try {
+    const { gradient } = req.body;
+    const user = await User.findById(req.user.userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.settings.gradient = {
+      ...user.settings.gradient,
+      ...gradient
+    };
+
+    await user.save();
+
+    res.json({
+      message: 'Gradient settings updated successfully',
+      settings: user.settings
+    });
+  } catch (error) {
+    console.error('Gradient update error:', error);
+    res.status(500).json({ 
+      message: 'Server error while updating gradient', 
+      error: error.message 
+    });
   }
 });
 

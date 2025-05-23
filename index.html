@@ -19,6 +19,7 @@
             <div class="auth-tabs">
                 <button class="auth-tab active" data-tab="login">Login</button>
                 <button class="auth-tab" data-tab="register">Register</button>
+                <div class="auth-tab-slider"></div>
             </div>
 
             <!-- Login Form -->
@@ -39,6 +40,26 @@
                 </div>
                 <div class="form-group">
                     <input type="password" id="passwordRegister" placeholder="Choose Password" required>
+                </div>
+                <div class="gradient-settings">
+                    <label class="gradient-toggle">
+                        <input type="checkbox" id="gradientEnabled" checked>
+                        <span class="toggle-label">Enable Gradient Background</span>
+                    </label>
+                    <div class="gradient-colors">
+                        <div class="color-picker">
+                            <label for="startColor">Start</label>
+                            <input type="color" id="startColor" value="#4158D0">
+                        </div>
+                        <div class="color-picker">
+                            <label for="middleColor">Middle</label>
+                            <input type="color" id="middleColor" value="#C850C0">
+                        </div>
+                        <div class="color-picker">
+                            <label for="endColor">End</label>
+                            <input type="color" id="endColor" value="#FFCC70">
+                        </div>
+                    </div>
                 </div>
                 <button type="submit" class="auth-button">Register</button>
             </form>
