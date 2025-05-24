@@ -4,11 +4,18 @@ const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: ['https://your-frontend-domain.com', 'http://localhost:5173'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(cookieParser());
 
 // MongoDB Connection with error handling
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/task-manager', {
@@ -97,25 +104,26 @@ const Task = mongoose.model('Task', taskSchema);
 const Statistics = mongoose.model('Statistics', statisticsSchema);
 
 // JWT Configuration
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRATION = process.env.JWT_EXPIRATION || '24h';
 
 // Middleware to verify JWT token
-function verifyToken(req, res, next) {
-  const token = req.headers['authorization']?.split(' ')[1];
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) {
-    return res.status(403).json({ message: 'Access denied, token missing' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
     }
-    req.user = decoded;
-    next();
-  });
-}
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: 'Invalid token' });
+        }
+        req.user = user;
+        next();
+    });
+};
 
 // Authentication Routes
 app.post('/register', async (req, res) => {
@@ -210,6 +218,12 @@ app.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
     res.json({ 
       message: 'Login successful', 
       token, 
@@ -221,8 +235,17 @@ app.post('/login', async (req, res) => {
   }
 });
 
+app.get('/auth/status', authenticateToken, (req, res) => {
+  res.json({ isAuthenticated: true, user: req.user });
+});
+
+app.post('/logout', (req, res) => {
+  res.clearCookie('authToken');
+  res.json({ message: 'Logged out successfully' });
+});
+
 // Task Routes
-app.post('/tasks', verifyToken, async (req, res) => {
+app.post('/tasks', authenticateToken, async (req, res) => {
   try {
     const task = new Task({
       ...req.body,
@@ -242,7 +265,7 @@ app.post('/tasks', verifyToken, async (req, res) => {
   }
 });
 
-app.get('/tasks', verifyToken, async (req, res) => {
+app.get('/tasks', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate, category, priority, completed, search, labels } = req.query;
     let query = { userId: req.user.userId };
@@ -271,7 +294,7 @@ app.get('/tasks', verifyToken, async (req, res) => {
   }
 });
 
-app.put('/tasks/:id', verifyToken, async (req, res) => {
+app.put('/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user.userId },
@@ -287,7 +310,7 @@ app.put('/tasks/:id', verifyToken, async (req, res) => {
   }
 });
 
-app.delete('/tasks/:id', verifyToken, async (req, res) => {
+app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
     if (!task) return res.status(404).json({ message: 'Task not found' });
@@ -300,7 +323,7 @@ app.delete('/tasks/:id', verifyToken, async (req, res) => {
 });
 
 // Statistics Routes
-app.get('/statistics', verifyToken, async (req, res) => {
+app.get('/statistics', authenticateToken, async (req, res) => {
   try {
     let stats = await Statistics.findOne({ userId: req.user.userId });
     if (!stats) {
@@ -313,7 +336,7 @@ app.get('/statistics', verifyToken, async (req, res) => {
 });
 
 // User Settings Routes
-app.get('/user/settings', verifyToken, async (req, res) => {
+app.get('/user/settings', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     res.json({
@@ -326,7 +349,7 @@ app.get('/user/settings', verifyToken, async (req, res) => {
   }
 });
 
-app.put('/user/settings', verifyToken, async (req, res) => {
+app.put('/user/settings', authenticateToken, async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.user.userId,
@@ -348,7 +371,7 @@ app.put('/user/settings', verifyToken, async (req, res) => {
 });
 
 // Calendar Routes
-app.get('/calendar/tasks', verifyToken, async (req, res) => {
+app.get('/calendar/tasks', authenticateToken, async (req, res) => {
   try {
     const { year, month } = req.query;
     const startDate = new Date(year, month - 1, 1);
@@ -366,7 +389,7 @@ app.get('/calendar/tasks', verifyToken, async (req, res) => {
 });
 
 // Reminder Routes
-app.get('/tasks/reminders', verifyToken, async (req, res) => {
+app.get('/tasks/reminders', authenticateToken, async (req, res) => {
   try {
     const now = new Date();
     const tasks = await Task.find({
@@ -390,7 +413,7 @@ app.get('/tasks/reminders', verifyToken, async (req, res) => {
 });
 
 // Add a new endpoint to update gradient settings
-app.put('/user/gradient', verifyToken, async (req, res) => {
+app.put('/user/gradient', authenticateToken, async (req, res) => {
   try {
     const { gradient } = req.body;
     const user = await User.findById(req.user.userId);
@@ -535,7 +558,7 @@ async function initializeStatistics(userId) {
   return statistics.save();
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

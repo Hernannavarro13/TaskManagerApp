@@ -68,6 +68,9 @@ let charts = {};
 // API endpoint - Replace with your actual backend API URL when available
 const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
+// Update axios default configuration
+axios.defaults.withCredentials = true;
+
 // Initialize app
 async function initApp() {
     const authToken = localStorage.getItem('authToken');
@@ -86,8 +89,10 @@ async function initApp() {
         try {
             const response = await axios.get(`${API_URL}/todos`, {
                 headers: {
-                    'Authorization': `Bearer ${authToken}`
-                }
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                withCredentials: true
             });
             todos = response.data || [];
         } catch (error) {
@@ -297,8 +302,10 @@ async function saveTodos() {
                         try {
                             await axios.post(`${API_URL}/todos`, todo, {
                                 headers: {
-                                    'Authorization': `Bearer ${authToken}`
-                                }
+                                    'Authorization': `Bearer ${authToken}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                withCredentials: true
                             });
                             todo.synced = true;
                         } catch (error) {
@@ -583,48 +590,6 @@ function updateItemsLeft() {
     itemsLeftSpan.textContent = `${activeCount} item${activeCount !== 1 ? 's' : ''} left`;
 }
 
-// Handle Register Form Submission
-async function handleRegister(e) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const username = document.getElementById('usernameRegister').value;
-    const password = document.getElementById('passwordRegister').value;
-    const startColor = document.getElementById('startColor').value;
-    const middleColor = document.getElementById('middleColor').value;
-    const endColor = document.getElementById('endColor').value;
-
-    const payload = {
-        username,
-        password,
-        gradient: {
-            isEnabled: true,
-            startColor,
-            middleColor,
-            endColor
-        }
-    };
-
-    try {
-        const response = await axios.post(`${API_URL}/register`, payload, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.status === 201) {
-            alert('Registration successful! Please log in.');
-            // Switch to login tab
-            document.querySelector('[data-tab="login"]').click();
-        } else {
-            alert(response.data.message || 'Registration failed');
-        }
-    } catch (error) {
-        console.error('Registration error:', error);
-        alert(error.response?.data?.message || 'Registration failed');
-    }
-}
-
 // Handle Login Form Submission
 async function handleLogin(e) {
     e.preventDefault();
@@ -632,6 +597,11 @@ async function handleLogin(e) {
 
     const username = document.getElementById('usernameLogin').value;
     const password = document.getElementById('passwordLogin').value;
+
+    if (!username || !password) {
+        alert('Please fill in all required fields');
+        return;
+    }
 
     try {
         const response = await axios.post(`${API_URL}/login`, {
@@ -641,74 +611,115 @@ async function handleLogin(e) {
 
         if (response.data.token) {
             localStorage.setItem('authToken', response.data.token);
-            if (response.data.settings) {
-                localStorage.setItem('userSettings', JSON.stringify(response.data.settings));
-            }
             showTodoApp();
             await initApp();
+            document.getElementById('loginForm').reset();
         } else {
             alert('Login failed: Invalid credentials');
         }
     } catch (error) {
         console.error('Login error:', error);
-        alert(error.response?.data?.message || 'Login failed');
+        if (error.response) {
+            alert(error.response.data.message || 'Login failed');
+        } else {
+            alert('Login failed: Network error');
+        }
     }
 }
 
-// Setup auth related event listeners
-function setupAuthEventListeners() {
-    const registerForm = document.getElementById('registerForm');
-    const loginForm = document.getElementById('loginForm');
-    const authTabs = document.querySelectorAll('.auth-tab');
-    
-    if (registerForm) {
-        registerForm.addEventListener('submit', handleRegister);
+// Handle Register Form Submission
+async function handleRegister(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const username = document.getElementById('usernameRegister').value;
+    const password = document.getElementById('passwordRegister').value;
+
+    if (!username || !password) {
+        alert('Please fill in all required fields');
+        return;
     }
-    
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-    }
-    
-    // Handle tab switching
-    authTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetForm = tab.dataset.tab;
-            
-            // Update active tab
-            authTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // Show corresponding form
-            document.getElementById('loginForm').style.display = targetForm === 'login' ? 'flex' : 'none';
-            document.getElementById('registerForm').style.display = targetForm === 'register' ? 'flex' : 'none';
-            
-            // Move the slider
-            document.querySelector('.auth-tab-slider').classList.toggle('register', targetForm === 'register');
+
+    try {
+        const response = await axios.post(`${API_URL}/register`, {
+            username,
+            password
         });
-    });
+
+        if (response.status === 201) {
+            alert('Registration successful! Please log in.');
+            const loginTab = document.querySelector('[data-tab="login"]');
+            if (loginTab) {
+                loginTab.click();
+            } else {
+                document.getElementById('loginForm').style.display = 'flex';
+                document.getElementById('registerForm').style.display = 'none';
+            }
+            document.getElementById('registerForm').reset();
+        } else {
+            alert(response.data.message || 'Registration failed');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        if (error.response) {
+            alert(error.response.data.message || 'Registration failed');
+        } else {
+            alert('Registration failed: Network error');
+        }
+    }
+}
+
+// Handle Logout
+async function handleLogout() {
+    try {
+        await axios.post(`${API_URL}/logout`);
+        localStorage.removeItem('authToken');
+        showAuthScreen();
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+}
+
+// Check Authentication Status
+async function checkAuthStatus() {
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) {
+        showAuthScreen();
+        return false;
+    }
+
+    try {
+        const response = await axios.get(`${API_URL}/auth/status`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (response.data.isAuthenticated) {
+            return true;
+        } else {
+            localStorage.removeItem('authToken');
+            showAuthScreen();
+            return false;
+        }
+    } catch (error) {
+        console.error('Auth status check failed:', error);
+        localStorage.removeItem('authToken');
+        showAuthScreen();
+        return false;
+    }
 }
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     setupAuthEventListeners();
-    const authToken = localStorage.getItem('authToken');
-    
-    if (authToken) {
-        showTodoApp();
-        initApp();
-    } else {
-        showAuthScreen();
-    }
+    checkAuthStatus().then(isAuthenticated => {
+        if (isAuthenticated) {
+            showTodoApp();
+            initApp();
+        }
+    });
 });
-
-// Check if user is logged in
-const authToken = localStorage.getItem('authToken');
-
-if (authToken) {
-    document.body.classList.add('logged-in');
-} else {
-    document.body.classList.remove('logged-in');
-}
 
 // Initialize progress ring
 const progressCircumference = 2 * Math.PI * 54; // 54 is the radius of our circle
@@ -1873,5 +1884,61 @@ window.addEventListener('auth:logout', () => {
     renderTodos();
 });
 
-// Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', initApp);
+// Setup auth related event listeners
+function setupAuthEventListeners() {
+    const registerForm = document.getElementById('registerForm');
+    const loginForm = document.getElementById('loginForm');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Handle tab switching
+    authTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetForm = tab.dataset.tab;
+            
+            // Update active tab
+            authTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Show corresponding form
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            if (loginForm && registerForm) {
+                loginForm.style.display = targetForm === 'login' ? 'flex' : 'none';
+                registerForm.style.display = targetForm === 'register' ? 'flex' : 'none';
+            }
+            
+            // Move the slider
+            const slider = document.querySelector('.auth-tab-slider');
+            if (slider) {
+                slider.classList.toggle('register', targetForm === 'register');
+            }
+        });
+    });
+}
+
+// Update showTodoApp and showAuthScreen functions
+function showTodoApp() {
+    document.body.classList.add('logged-in');
+    document.querySelector('.auth-container')?.classList.add('hidden');
+    document.querySelector('.todo-container')?.classList.remove('hidden');
+}
+
+function showAuthScreen() {
+    document.body.classList.remove('logged-in');
+    document.querySelector('.auth-container')?.classList.remove('hidden');
+    document.querySelector('.todo-container')?.classList.add('hidden');
+}
