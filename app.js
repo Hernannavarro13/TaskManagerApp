@@ -184,43 +184,62 @@ function toggleTheme() {
 
 // API functions
 async function loadTodos() {
-    setSyncStatus('syncing');
-    
     try {
-        // Try to load from API first
-        try {
-            const response = await axios.get(API_URL);
-            todos = response.data;
-        } catch (error) {
-            console.log('API not available, loading from localStorage');
-            // Fallback to localStorage if API fails
-            todos = JSON.parse(localStorage.getItem('todos')) || [];
+        const authToken = localStorage.getItem('authToken');
+        if (!authToken) {
+            console.warn('No auth token found');
+            return;
         }
-        
+
+        const response = await axios.get(`${API_URL}/todos`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        todos = response.data || [];
         renderTodos();
         updateItemsLeft();
         updateProgress();
-        renderCalendar(); // Initial calendar render
-        setSyncStatus('synced');
+        updateCalendarView();
     } catch (error) {
         console.error('Failed to load todos:', error);
-        setSyncStatus('error', 'Failed to load todos');
+        // Try to load from localStorage as fallback
+        const savedTodos = localStorage.getItem(`todos_${getUserId()}`);
+        if (savedTodos) {
+            todos = JSON.parse(savedTodos);
+            renderTodos();
+            updateItemsLeft();
+            updateProgress();
+            updateCalendarView();
+        }
     }
 }
 
 async function saveTodos() {
-    // Save to localStorage immediately
-    localStorage.setItem('todos', JSON.stringify(todos));
-    
-    // Then try to sync with API
-    setSyncStatus('syncing');
-    
     try {
-        await axios.put(`${API_URL}`, todos);
-        setSyncStatus('synced');
+        const authToken = localStorage.getItem('authToken');
+        if (!authToken) {
+            console.warn('No auth token found');
+            return false;
+        }
+
+        // Save to localStorage as backup
+        localStorage.setItem(`todos_${getUserId()}`, JSON.stringify(todos));
+        
+        // Save to server
+        await axios.put(`${API_URL}/todos`, todos, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        return true;
     } catch (error) {
-        console.error('Failed to sync with server:', error);
-        setSyncStatus('error', 'Sync failed');
+        console.error('Failed to save todos:', error);
+        // Still save to localStorage even if server save fails
+        localStorage.setItem(`todos_${getUserId()}`, JSON.stringify(todos));
+        return false;
     }
 }
 
@@ -249,24 +268,50 @@ async function addTodo(e) {
     e.preventDefault();
     
     const todoText = todoInput.value.trim();
-    
     if (todoText.length === 0) return;
+    
+    const userId = getUserId();
+    if (!userId) {
+        alert('Please log in to add todos');
+        return;
+    }
     
     const newTodo = {
         id: Date.now(),
+        userId: userId,
         text: todoText,
         completed: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        categoryId: null
     };
     
-    todos.push(newTodo);
-    await saveTodos();
-    
-    todoInput.value = '';
-    renderTodos();
-    updateItemsLeft();
-    updateProgress();
-    updateCalendarView(); // Update calendar view instead of just renderCalendar
+    try {
+        // Save to server first
+        const response = await axios.post(`${API_URL}/todos`, newTodo, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+        });
+        
+        // Use the server-generated ID if provided
+        const savedTodo = response.data;
+        todos.unshift(savedTodo || newTodo);
+        
+        // Clear input and update UI
+        todoInput.value = '';
+        filterTasks();
+        updateItemsLeft();
+        updateProgress();
+        updateCalendarView();
+        
+        // Show success feedback
+        const todoForm = document.querySelector('.todo-form');
+        todoForm.classList.add('success');
+        setTimeout(() => todoForm.classList.remove('success'), 500);
+    } catch (error) {
+        console.error('Failed to add todo:', error);
+        alert('Failed to add todo. Please try again.');
+    }
 }
 
 function handleTodoClick(e) {
@@ -288,40 +333,70 @@ function handleTodoClick(e) {
 }
 
 async function toggleTodoComplete(id, element) {
-    const todoIndex = todos.findIndex(todo => todo.id === id);
-    if (todoIndex === -1) return;
-    
-    const wasCompleted = todos[todoIndex].completed;
-    todos[todoIndex].completed = !wasCompleted;
-    
-    if (todos[todoIndex].completed) {
-        element.classList.add('completed');
-    } else {
-        element.classList.remove('completed');
+    try {
+        const todoIndex = todos.findIndex(todo => todo.id === id);
+        if (todoIndex === -1) return;
+        
+        const updatedTodo = {
+            ...todos[todoIndex],
+            completed: !todos[todoIndex].completed
+        };
+        
+        // Update on server
+        await axios.put(`${API_URL}/todos/${id}`, updatedTodo, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+        });
+        
+        // Update local state and UI
+        todos[todoIndex] = updatedTodo;
+        
+        if (updatedTodo.completed) {
+            element.classList.add('completed');
+        } else {
+            element.classList.remove('completed');
+        }
+        
+        element.querySelector('.todo-checkbox').checked = updatedTodo.completed;
+        
+        await saveTodos();
+        updateItemsLeft();
+        updateProgress();
+        updateCalendarView();
+    } catch (error) {
+        console.error('Failed to update todo:', error);
+        // Revert checkbox state
+        element.querySelector('.todo-checkbox').checked = !element.querySelector('.todo-checkbox').checked;
+        alert('Failed to update todo. Please try again.');
     }
-    
-    element.classList.add('completeTask');
-    setTimeout(() => {
-        element.classList.remove('completeTask');
-    }, 500);
-    
-    await saveTodos();
-    updateItemsLeft();
-    updateProgress();
-    updateCalendarView(); // Update calendar view instead of just renderCalendar
 }
 
 async function deleteTodo(id, element) {
-    element.classList.add('deleting');
-    
-    setTimeout(async () => {
-        todos = todos.filter(todo => todo.id !== id);
-        await saveTodos();
-        renderTodos();
-        updateItemsLeft();
-        updateProgress();
-        updateCalendarView(); // Update calendar view instead of just renderCalendar
-    }, 500);
+    try {
+        element.classList.add('deleting');
+        
+        // Delete from server
+        await axios.delete(`${API_URL}/todos/${id}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            }
+        });
+        
+        // Remove from local array and update UI
+        setTimeout(async () => {
+            todos = todos.filter(todo => todo.id !== id);
+            await saveTodos();
+            filterTasks();
+            updateItemsLeft();
+            updateProgress();
+            updateCalendarView();
+        }, 500);
+    } catch (error) {
+        console.error('Failed to delete todo:', error);
+        element.classList.remove('deleting');
+        alert('Failed to delete todo. Please try again.');
+    }
 }
 
 async function clearCompleted() {
@@ -340,49 +415,44 @@ async function clearCompleted() {
     }, 500);
 }
 
-function renderTodos(todos = this.todos) {
-    // Filter todos based on current filter
-    const filteredTodos = todos.filter(todo => {
-        if (currentFilter === 'active') return !todo.completed;
-        if (currentFilter === 'completed') return todo.completed;
-        return true; // 'all' filter
-    });
-    
+function renderTodos(filteredTodos = todos) {
     // Clear current list
     todoList.innerHTML = '';
     
     // Show empty state if no todos
     if (filteredTodos.length === 0) {
-        const emptyState = emptyStateTemplate.content.cloneNode(true);
-        
-        if (todos.length === 0) {
-            emptyState.querySelector('.empty-icon').textContent = '📝';
-            emptyState.querySelector('.empty-title').textContent = 'Your todo list is empty';
-            emptyState.querySelector('.empty-description').textContent = 'Add a new task to get started';
-        } else {
-            emptyState.querySelector('.empty-icon').textContent = '🔍';
-            emptyState.querySelector('.empty-title').textContent = `No ${currentFilter} tasks found`;
-            emptyState.querySelector('.empty-description').textContent = '';
-        }
-        
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        emptyState.innerHTML = `
+            <span class="empty-icon">📝</span>
+            <h2 class="empty-title">${todos.length === 0 ? 'Your todo list is empty' : `No ${currentFilter} tasks found`}</h2>
+            <p class="empty-description">${todos.length === 0 ? 'Add a new task to get started' : ''}</p>
+        `;
         todoList.appendChild(emptyState);
         return;
     }
     
     // Render filtered todos
     filteredTodos.forEach(todo => {
-        const todoItem = todoItemTemplate.content.cloneNode(true).querySelector('.todo-item');
-        
-        if (todo.completed) {
-            todoItem.classList.add('completed');
-        }
-        
+        const todoItem = document.createElement('li');
+        todoItem.className = `todo-item${todo.completed ? ' completed' : ''}`;
         todoItem.dataset.id = todo.id;
-        todoItem.querySelector('.todo-text').textContent = todo.text;
-        todoItem.querySelector('.todo-checkbox').checked = todo.completed;
+        
+        todoItem.innerHTML = `
+            <div class="checkbox-wrapper">
+                <input type="checkbox" class="todo-checkbox" ${todo.completed ? 'checked' : ''}>
+                <div class="custom-checkbox"></div>
+            </div>
+            <span class="todo-text">${todo.text}</span>
+            <button class="delete-btn" aria-label="Delete todo">×</button>
+        `;
         
         todoList.appendChild(todoItem);
     });
+    
+    // Update counts
+    updateItemsLeft();
+    updateProgress();
 }
 
 function updateItemsLeft() {
@@ -422,34 +492,30 @@ registerForm.addEventListener('submit', async (e) => {
 
 // Handle Login Form Submission
 loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); // Prevent form from reloading the page
+    e.preventDefault();
 
     const username = document.getElementById('usernameLogin').value;
     const password = document.getElementById('passwordLogin').value;
 
-    const payload = { username, password };
-
     try {
-        const response = await fetch(`${API_URL}/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+        const response = await axios.post(`${API_URL}/login`, {
+            username,
+            password
         });
 
-        const data = await response.json();
-        if (response.ok) {
-            // Save the JWT token
-            localStorage.setItem('authToken', data.token);
-            // Initialize the todo app after successful login
-            initApp();
+        if (response.data.token) {
+            localStorage.setItem('authToken', response.data.token);
+            document.querySelector('.auth-screen').style.display = 'none';
+            document.querySelector('.todo-app').style.display = 'block';
+            
+            // Initialize app and load user's todos
+            await initApp();
         } else {
-            alert(data.message || 'Login failed');
+            alert('Login failed: Invalid credentials');
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Login failed');
+        console.error('Login error:', error);
+        alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
     }
 });
 
@@ -836,32 +902,24 @@ function getTodosForDay(date) {
 function updateProgress() {
     const total = todos.length;
     const completed = todos.filter(todo => todo.completed).length;
-    const remaining = total - completed;
-    
-    // Update task counts
-    tasksCompletedElement.textContent = completed;
-    tasksRemainingElement.textContent = remaining;
     
     // Update progress ring
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const progressCircumference = 2 * Math.PI * 54;
     const offset = progressCircumference - (progressCircumference * percentage) / 100;
     progressRing.style.strokeDashoffset = offset;
+    
+    // Update percentage text
     progressPercentage.textContent = `${percentage}%`;
     
-    // Update year stats
-    yearStats.total = total;
-    yearStats.completed = completed;
+    // Update task counts
+    tasksCompletedElement.textContent = completed;
+    tasksRemainingElement.textContent = total - completed;
+    
+    // Update year progress
     yearTotalElement.textContent = total;
     yearCompletedElement.textContent = completed;
-    
-    // Update year progress bar
-    const yearPercentage = (completed / (total || 1)) * 100;
-    yearProgressFill.style.width = `${yearPercentage}%`;
-    
-    // Trigger confetti on task completion
-    if (completed > 0 && completed === total) {
-        triggerConfetti();
-    }
+    yearProgressFill.style.width = `${percentage}%`;
 }
 
 // Confetti animation
@@ -1558,3 +1616,38 @@ document.addEventListener('DOMContentLoaded', () => {
 function handleCategoryClick(categoryId) {
     filterTasks({ category: categoryId });
 }
+
+// Add function to get user ID from token
+function getUserId() {
+    const token = localStorage.getItem('authToken');
+    if (!token) return null;
+    
+    try {
+        // Decode JWT token to get user ID
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        
+        return JSON.parse(jsonPayload).userId;
+    } catch (error) {
+        console.error('Failed to decode token:', error);
+        return null;
+    }
+}
+
+// Update logout functionality
+function logout() {
+    localStorage.removeItem('authToken');
+    todos = [];
+    document.querySelector('.todo-app').style.display = 'none';
+    document.querySelector('.auth-screen').style.display = 'flex';
+}
+
+// Add logout button handler
+document.querySelector('.user-menu-btn').addEventListener('click', () => {
+    if (confirm('Are you sure you want to logout?')) {
+        logout();
+    }
+});
