@@ -43,6 +43,7 @@ const categoryModal = document.getElementById('categoryModal');
 const addCategoryForm = document.getElementById('addCategoryForm');
 const categoryList = document.getElementById('categoryList');
 const statsTimeRange = document.getElementById('statsTimeRange');
+const addCategoryBtn = document.getElementById('addCategoryBtn');
 
 // App state
 let todos = [];
@@ -69,23 +70,45 @@ const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
 // Initialize app
 async function initApp() {
-    // Check authentication first
+    // Check authentication
     const authToken = localStorage.getItem('authToken');
-    
     if (!authToken) {
-        if (todoApp) todoApp.style.display = 'none';
+        document.querySelector('.todo-app').style.display = 'none';
+        document.querySelector('.auth-screen').style.display = 'flex';
         return;
     }
-    
-    if (todoApp) todoApp.style.display = 'block';
-    
-    // Set theme from localStorage or default to light
+
+    document.querySelector('.todo-app').style.display = 'block';
+    document.querySelector('.auth-screen').style.display = 'none';
+
+    // Set theme
     const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
-    
+
     // Event Listeners
+    setupEventListeners();
+
+    // Load initial data
+    await Promise.all([
+        loadTodos(),
+        loadCategories(),
+        loadHolidays()
+    ]);
+
+    // Initialize features
+    initCalendarFeatures();
+    updateProgress();
+    renderCalendar();
+}
+
+function setupEventListeners() {
+    // Todo form
     todoForm.addEventListener('submit', addTodo);
+    
+    // Todo list interactions
     todoList.addEventListener('click', handleTodoClick);
+    
+    // Filters
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             filterBtns.forEach(b => b.classList.remove('active'));
@@ -94,11 +117,57 @@ async function initApp() {
             renderTodos();
         });
     });
+    
+    // Clear completed
     clearCompletedBtn.addEventListener('click', clearCompleted);
+    
+    // Theme toggle
     themeToggle.addEventListener('click', toggleTheme);
     
-    // Load todos from API or fallback to localStorage
-    await loadTodos();
+    // Search
+    searchInput.addEventListener('input', debounce(() => {
+        const searchTerm = searchInput.value.toLowerCase();
+        filterTasks({ searchTerm });
+    }, 300));
+    
+    // Category management
+    addCategoryBtn.addEventListener('click', () => {
+        showCategoryModal();
+    });
+    
+    // Calendar navigation
+    calendarViewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            if (view) {
+                calendarViewBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                switchCalendarView(view);
+            }
+        });
+    });
+}
+
+function filterTasks(filters = {}) {
+    const filteredTodos = todos.filter(todo => {
+        // Search filter
+        if (filters.searchTerm && !todo.text.toLowerCase().includes(filters.searchTerm)) {
+            return false;
+        }
+        
+        // Status filter
+        if (currentFilter === 'active' && todo.completed) return false;
+        if (currentFilter === 'completed' && !todo.completed) return false;
+        
+        // Category filter
+        if (filters.category && todo.categoryId !== filters.category) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    renderTodos(filteredTodos);
 }
 
 // Theme functions
@@ -271,7 +340,7 @@ async function clearCompleted() {
     }, 500);
 }
 
-function renderTodos() {
+function renderTodos(todos = this.todos) {
     // Filter todos based on current filter
     const filteredTodos = todos.filter(todo => {
         if (currentFilter === 'active') return !todo.completed;
@@ -535,10 +604,11 @@ function handleQuickNav(type) {
 }
 
 function switchCalendarView(view) {
+    calendarGrid.style.display = view === 'month' ? 'grid' : 'none';
+    calendarDayView.style.display = view === 'day' ? 'block' : 'none';
+    calendarWeekView.style.display = view === 'week' ? 'block' : 'none';
+    
     currentView = view;
-    calendarViewBtns.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === view);
-    });
     updateCalendarView();
 }
 
@@ -840,7 +910,6 @@ function loadCategories() {
 }
 
 function renderCategories() {
-    // Update category list in modal
     categoryList.innerHTML = '';
     categories.forEach(category => {
         const categoryItem = document.createElement('div');
@@ -848,15 +917,8 @@ function renderCategories() {
         categoryItem.innerHTML = `
             <div class="category-color" style="background-color: ${category.color}"></div>
             <div class="category-name">${category.name}</div>
-            <div class="category-actions">
-                <button class="edit-category" data-id="${category.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="delete-category" data-id="${category.id}">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
         `;
+        categoryItem.addEventListener('click', () => handleCategoryClick(category.id));
         categoryList.appendChild(categoryItem);
     });
     
@@ -1154,36 +1216,6 @@ function getActiveFilters() {
     });
     
     return filters;
-}
-
-function filterTasks(filters) {
-    const filteredTodos = todos.filter(todo => {
-        // Search term filter
-        if (filters.searchTerm && !todo.text.toLowerCase().includes(filters.searchTerm)) {
-            return false;
-        }
-        
-        // Category filter
-        if (filters.categories.length > 0 && !filters.categories.includes(todo.categoryId)) {
-            return false;
-        }
-        
-        // Priority filter
-        if (filters.priorities.length > 0 && !filters.priorities.includes(todo.priority)) {
-            return false;
-        }
-        
-        // Status filter
-        if (filters.status.length > 0) {
-            if (filters.status.includes('completed') && !todo.completed) return false;
-            if (filters.status.includes('pending') && todo.completed) return false;
-            if (filters.status.includes('recurring') && !todo.recurrence) return false;
-        }
-        
-        return true;
-    });
-    
-    renderTodos(filteredTodos);
 }
 
 // Task Details Modal
@@ -1521,3 +1553,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initSwipeNavigation();
     });
 });
+
+// Add this function to handle category clicks
+function handleCategoryClick(categoryId) {
+    filterTasks({ category: categoryId });
+}
