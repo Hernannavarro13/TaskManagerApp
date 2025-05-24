@@ -70,25 +70,47 @@ const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
 // Initialize app
 async function initApp() {
-    // Check authentication using Auth module
-    if (!await window.Auth.verifyToken()) {
-        return;
+    const authToken = localStorage.getItem('authToken');
+    
+    // Show appropriate screen based on auth state
+    if (authToken) {
+        showTodoApp();
+    } else {
+        showAuthScreen();
+        return; // Don't continue initialization if not authenticated
     }
-
+    
+    // Load saved todos
+    try {
+        // Try to load from server first
+        try {
+            const response = await axios.get(`${API_URL}/todos`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            todos = response.data || [];
+        } catch (error) {
+            console.warn('Failed to load from server, using local storage:', error);
+            // Fall back to localStorage
+            const savedTodos = localStorage.getItem('todos');
+            todos = savedTodos ? JSON.parse(savedTodos) : [];
+        }
+    } catch (error) {
+        console.error('Error loading todos:', error);
+        todos = [];
+    }
+    
     // Set theme
     const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
-
-    // Load initial data
-    await Promise.all([
-        loadTodos(),
-        loadCategories(),
-        loadHolidays()
-    ]);
-
-    // Initialize features
+    
+    // Setup event listeners
     setupEventListeners();
+    
+    // Initialize features
     initCalendarFeatures();
+    renderTodos();
     updateProgress();
     renderCalendar();
 }
@@ -106,26 +128,40 @@ function showTodoApp() {
 function setupEventListeners() {
     // Remove any existing listeners
     const newTodoForm = document.querySelector('.todo-form');
+    if (!newTodoForm) {
+        console.error('Todo form not found');
+        return;
+    }
+    
     const clonedForm = newTodoForm.cloneNode(true);
     newTodoForm.parentNode.replaceChild(clonedForm, newTodoForm);
     
     // Add new listeners
-    clonedForm.addEventListener('submit', handleTodoSubmit);
+    clonedForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleTodoSubmit(e);
+    });
     
     const newTodoInput = clonedForm.querySelector('.todo-input');
-    newTodoInput.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            await handleTodoSubmit(e);
-            return false;
-        }
-    });
+    if (newTodoInput) {
+        newTodoInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                await handleTodoSubmit(e);
+            }
+        });
+    }
 
     // Todo list interactions
-    todoList.addEventListener('click', handleTodoClick);
+    const todoList = document.querySelector('.todo-list');
+    if (todoList) {
+        todoList.addEventListener('click', handleTodoClick);
+    }
     
     // Filters
+    const filterBtns = document.querySelectorAll('.filter-btn');
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             filterBtns.forEach(b => b.classList.remove('active'));
@@ -136,23 +172,36 @@ function setupEventListeners() {
     });
     
     // Clear completed
-    clearCompletedBtn.addEventListener('click', clearCompleted);
+    const clearCompletedBtn = document.querySelector('.clear-completed');
+    if (clearCompletedBtn) {
+        clearCompletedBtn.addEventListener('click', clearCompleted);
+    }
     
     // Theme toggle
-    themeToggle.addEventListener('click', toggleTheme);
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
     
     // Search
-    searchInput.addEventListener('input', debounce(() => {
-        const searchTerm = searchInput.value.toLowerCase();
-        filterTasks({ searchTerm });
-    }, 300));
+    const searchInput = document.getElementById('taskSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(() => {
+            const searchTerm = searchInput.value.toLowerCase();
+            filterTasks({ searchTerm });
+        }, 300));
+    }
     
     // Category management
-    addCategoryBtn.addEventListener('click', () => {
-        showCategoryModal();
-    });
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    if (addCategoryBtn) {
+        addCategoryBtn.addEventListener('click', () => {
+            showCategoryModal();
+        });
+    }
     
     // Calendar navigation
+    const calendarViewBtns = document.querySelectorAll('.calendar-view-btn');
     calendarViewBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const view = btn.dataset.view;
@@ -235,27 +284,36 @@ async function loadTodos() {
 
 async function saveTodos() {
     try {
-        const authToken = localStorage.getItem('authToken');
-        if (!authToken) {
-            console.warn('No auth token found');
-            return false;
-        }
-
-        // Save to localStorage as backup
-        localStorage.setItem(`todos_${getUserId()}`, JSON.stringify(todos));
+        // Always save to localStorage first
+        localStorage.setItem('todos', JSON.stringify(todos));
         
-        // Save to server
-        await axios.put(`${API_URL}/todos`, todos, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
+        // Try to sync with server if authenticated
+        const authToken = localStorage.getItem('authToken');
+        if (authToken) {
+            try {
+                // We don't wait for this to complete
+                todos.forEach(async (todo) => {
+                    if (!todo.synced) {
+                        try {
+                            await axios.post(`${API_URL}/todos`, todo, {
+                                headers: {
+                                    'Authorization': `Bearer ${authToken}`
+                                }
+                            });
+                            todo.synced = true;
+                        } catch (error) {
+                            console.warn('Failed to sync todo with server:', error);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.warn('Failed to sync with server:', error);
             }
-        });
+        }
         
         return true;
     } catch (error) {
-        console.error('Failed to save todos:', error);
-        // Still save to localStorage even if server save fails
-        localStorage.setItem(`todos_${getUserId()}`, JSON.stringify(todos));
+        console.error('Error saving todos:', error);
         return false;
     }
 }
@@ -294,82 +352,70 @@ async function handleTodoSubmit(e) {
         return false;
     }
 
-    await addTodo(todoText);
+    await addTodo(e);
     return false;
 }
 
 // Update addTodo to accept text directly
-async function addTodo(todoText) {
-    if (!todoText) return;
-    
-    // Verify authentication
-    if (!await window.Auth.verifyToken()) {
-        return;
+async function addTodo(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
     }
     
     const todoInput = document.querySelector('.todo-input');
-    const todoForm = document.querySelector('.todo-form');
+    const todoText = todoInput.value.trim();
+    if (todoText.length === 0) return;
     
     const newTodo = {
         id: Date.now(),
         text: todoText,
         completed: false,
-        createdAt: new Date().toISOString(),
-        categoryId: null
+        createdAt: new Date().toISOString()
     };
     
-    // Show loading state
-    todoForm.classList.add('loading');
-    
     try {
-        // Add to local array first for immediate feedback
-        todos.unshift(newTodo);
-        renderTodos();
-        
-        // Clear input immediately
-        todoInput.value = '';
-        
-        // Save to server
-        const response = await axios.post(`${API_URL}/todos`, newTodo, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-            }
-        });
-        
-        // Update with server response if needed
-        if (response.data && response.data.id) {
-            const index = todos.findIndex(t => t.id === newTodo.id);
-            if (index !== -1) {
-                todos[index] = { ...todos[index], ...response.data };
+        const authToken = localStorage.getItem('authToken');
+        if (authToken) {
+            // Try to save to server first
+            try {
+                const response = await axios.post(`${API_URL}/todos`, newTodo, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                // If successful, use the server's version of the todo
+                newTodo.id = response.data.id || newTodo.id;
+            } catch (error) {
+                console.warn('Failed to save to server, saving locally only:', error);
             }
         }
         
+        // Add to local array
+        todos.unshift(newTodo);
+        
+        // Clear input
+        todoInput.value = '';
+        
+        // Save to localStorage
+        await saveTodos();
+        
         // Update UI
-        filterTasks();
-        updateItemsLeft();
+        renderTodos();
         updateProgress();
         updateCalendarView();
         
         // Show success feedback
-        todoForm.classList.add('success');
-        setTimeout(() => todoForm.classList.remove('success'), 500);
-        
-        // Trigger confetti
-        triggerConfetti();
-        
-    } catch (error) {
-        console.error('Failed to add todo:', error);
-        // Remove the todo if server save failed
-        todos = todos.filter(t => t.id !== newTodo.id);
-        renderTodos();
-        
-        if (error.response?.status === 401) {
-            window.Auth.showAuthScreen();
-        } else {
-            alert('Failed to add todo. Please try again.');
+        const todoForm = document.querySelector('.todo-form');
+        if (todoForm) {
+            todoForm.classList.add('success');
+            setTimeout(() => todoForm.classList.remove('success'), 500);
         }
-    } finally {
-        todoForm.classList.remove('loading');
+        
+        return false;
+    } catch (error) {
+        console.error('Error adding todo:', error);
+        alert('Failed to add todo. Please try again.');
     }
 }
 
@@ -475,6 +521,13 @@ async function clearCompleted() {
 }
 
 function renderTodos(filteredTodos = todos) {
+    // Get the todo list container
+    const todoList = document.querySelector('.todo-list');
+    if (!todoList) {
+        console.error('Todo list container not found');
+        return;
+    }
+    
     // Clear current list
     todoList.innerHTML = '';
     
@@ -491,7 +544,7 @@ function renderTodos(filteredTodos = todos) {
         return;
     }
     
-    // Render filtered todos
+    // Create and append todo items
     filteredTodos.forEach(todo => {
         const todoItem = document.createElement('li');
         todoItem.className = `todo-item${todo.completed ? ' completed' : ''}`;
@@ -505,6 +558,17 @@ function renderTodos(filteredTodos = todos) {
             <span class="todo-text">${todo.text}</span>
             <button class="delete-btn" aria-label="Delete todo">×</button>
         `;
+        
+        // Add event listeners
+        const checkbox = todoItem.querySelector('.todo-checkbox');
+        checkbox.addEventListener('change', () => {
+            toggleTodoComplete(todo.id, todoItem);
+        });
+        
+        const deleteBtn = todoItem.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', () => {
+            deleteTodo(todo.id, todoItem);
+        });
         
         todoList.appendChild(todoItem);
     });
