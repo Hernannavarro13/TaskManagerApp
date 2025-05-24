@@ -73,37 +73,52 @@ async function initApp() {
     // Check authentication
     const authToken = localStorage.getItem('authToken');
     if (!authToken) {
-        document.querySelector('.todo-app').style.display = 'none';
-        document.querySelector('.auth-screen').style.display = 'flex';
+        showAuthScreen();
         return;
     }
 
+    try {
+        // Verify token is still valid
+        await axios.get(`${API_URL}/verify-token`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        showTodoApp();
+        await loadTodos();
+        setupEventListeners();
+        updateProgress();
+        renderCalendar();
+    } catch (error) {
+        console.error('Token validation failed:', error);
+        showAuthScreen();
+    }
+}
+
+function showAuthScreen() {
+    document.querySelector('.todo-app').style.display = 'none';
+    document.querySelector('.auth-screen').style.display = 'flex';
+}
+
+function showTodoApp() {
     document.querySelector('.todo-app').style.display = 'block';
     document.querySelector('.auth-screen').style.display = 'none';
-
-    // Set theme
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setTheme(savedTheme);
-
-    // Event Listeners
-    setupEventListeners();
-
-    // Load initial data
-    await Promise.all([
-        loadTodos(),
-        loadCategories(),
-        loadHolidays()
-    ]);
-
-    // Initialize features
-    initCalendarFeatures();
-    updateProgress();
-    renderCalendar();
 }
 
 function setupEventListeners() {
-    // Todo form
-    todoForm.addEventListener('submit', addTodo);
+    // Remove the old form listener and add a new one
+    todoForm.removeEventListener('submit', addTodo);
+    todoForm.addEventListener('submit', handleTodoSubmit);
+    
+    // Update todo input handling
+    todoInput.removeEventListener('keypress', addTodo);
+    todoInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent form submission
+            await handleTodoSubmit(e);
+        }
+    });
     
     // Todo list interactions
     todoList.addEventListener('click', handleTodoClick);
@@ -145,14 +160,6 @@ function setupEventListeners() {
                 switchCalendarView(view);
             }
         });
-    });
-
-    // Add enter key handler for todo input
-    todoInput.addEventListener('keypress', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            await addTodo(e);
-        }
     });
 }
 
@@ -271,16 +278,35 @@ function setSyncStatus(status, message = '') {
     }
 }
 
-// Todo Functions
+// New form submission handler
+async function handleTodoSubmit(e) {
+    e.preventDefault(); // Prevent form submission
+    e.stopPropagation(); // Stop event bubbling
+    
+    // Check authentication before proceeding
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) {
+        showAuthScreen();
+        return;
+    }
+    
+    await addTodo(e);
+    return false; // Prevent any default form behavior
+}
+
+// Update addTodo function
 async function addTodo(e) {
-    e.preventDefault(); // Prevent form submission from reloading
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
     
     const todoText = todoInput.value.trim();
     if (todoText.length === 0) return;
     
     const userId = getUserId();
     if (!userId) {
-        alert('Please log in to add todos');
+        showAuthScreen();
         return;
     }
     
@@ -300,6 +326,18 @@ async function addTodo(e) {
     submitButton.disabled = true;
     
     try {
+        // Verify token is still valid
+        try {
+            await axios.get(`${API_URL}/verify-token`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                }
+            });
+        } catch (error) {
+            showAuthScreen();
+            return;
+        }
+        
         // Add to local array first for immediate feedback
         todos.unshift(newTodo);
         renderTodos();
@@ -341,7 +379,12 @@ async function addTodo(e) {
         // Remove the todo if server save failed
         todos = todos.filter(t => t.id !== newTodo.id);
         renderTodos();
-        alert('Failed to add todo. Please try again.');
+        
+        if (error.response?.status === 401) {
+            showAuthScreen();
+        } else {
+            alert('Failed to add todo. Please try again.');
+        }
     } finally {
         // Reset button state
         if (submitButton) {
@@ -349,6 +392,8 @@ async function addTodo(e) {
             submitButton.disabled = false;
         }
     }
+    
+    return false; // Prevent form submission
 }
 
 function handleTodoClick(e) {
@@ -530,6 +575,7 @@ registerForm.addEventListener('submit', async (e) => {
 // Handle Login Form Submission
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopPropagation();
 
     const username = document.getElementById('usernameLogin').value;
     const password = document.getElementById('passwordLogin').value;
@@ -542,10 +588,7 @@ loginForm.addEventListener('submit', async (e) => {
 
         if (response.data.token) {
             localStorage.setItem('authToken', response.data.token);
-            document.querySelector('.auth-screen').style.display = 'none';
-            document.querySelector('.todo-app').style.display = 'block';
-            
-            // Initialize app and load user's todos
+            showTodoApp();
             await initApp();
         } else {
             alert('Login failed: Invalid credentials');
@@ -554,6 +597,8 @@ loginForm.addEventListener('submit', async (e) => {
         console.error('Login error:', error);
         alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
     }
+    
+    return false;
 });
 
 // Check if user is logged in
