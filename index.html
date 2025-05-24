@@ -8,6 +8,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body data-theme="light">
+    <!-- Main Navigation Bar -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>Task Manager</h1>
+            </div>
+            <div class="nav-controls">
+                <button id="themeToggle" aria-label="Toggle theme">
+                    <img src="images/icon-sun.svg" alt="Theme icon" class="theme-icon">
+                </button>
+                <div class="user-menu">
+                    <button class="user-menu-btn">
+                        <i class="fas fa-user"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
     <!-- Auth Screen -->
     <div class="auth-screen">
         <div class="auth-container">
@@ -64,31 +83,43 @@
 
     <!-- Todo App -->
     <div class="todo-app" style="display: none;">
-        <!-- SVG Definitions -->
-        <svg width="0" height="0" class="hidden">
-            <defs>
-                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stop-color="var(--gradient-1)" />
-                    <stop offset="100%" stop-color="var(--gradient-2)" />
-                </linearGradient>
-            </defs>
-        </svg>
-
-        <header class="header">
-            <div class="container">
-                <div class="header-content">
-                    <h1>TODO</h1>
-                    <button id="themeToggle" aria-label="Toggle theme">
-                        <img src="images/icon-sun.svg" alt="Theme icon" class="theme-icon">
+        <div class="app-container">
+            <!-- Left Sidebar -->
+            <aside class="sidebar left-sidebar">
+                <div class="sidebar-section">
+                    <h3>Categories</h3>
+                    <div id="categoryList" class="category-list">
+                        <!-- Categories will be listed here -->
+                    </div>
+                    <button class="add-category-btn" id="addCategoryBtn">
+                        <i class="fas fa-plus"></i> Add Category
                     </button>
                 </div>
-            </div>
-        </header>
+                
+                <div class="sidebar-section">
+                    <h3>Filters</h3>
+                    <div class="filter-options">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="active">Active</button>
+                        <button class="filter-btn" data-filter="completed">Completed</button>
+                    </div>
+                </div>
+            </aside>
 
-        <main class="main">
-            <div class="container main-grid">
-                <!-- Left Section: Todo List -->
-                <div class="todo-section">
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Search Bar -->
+                <div class="search-bar">
+                    <div class="search-box">
+                        <input type="text" id="taskSearch" placeholder="Search tasks...">
+                        <button class="search-btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Task Management Area -->
+                <div class="task-management">
                     <!-- New Todo Form -->
                     <form class="todo-form">
                         <div class="checkbox-wrapper">
@@ -100,27 +131,200 @@
                     <!-- Todo List -->
                     <div class="todo-list-wrapper">
                         <ul class="todo-list"></ul>
-
-                        <!-- Todo Controls -->
                         <div class="todo-controls">
                             <span class="items-left">0 items left</span>
-                            <div class="filter-buttons">
-                                <button class="filter-btn active" data-filter="all">All</button>
-                                <button class="filter-btn" data-filter="active">Active</button>
-                                <button class="filter-btn" data-filter="completed">Completed</button>
-                            </div>
                             <button class="clear-completed">Clear Completed</button>
                         </div>
                     </div>
-
-                    <div id="syncStatus" class="sync-status">
-                        <span class="sync-message">Synced</span>
-                    </div>
                 </div>
 
-                <!-- Right Section: Progress & Calendar -->
-                <div class="progress-section">
-                    <!-- Progress Circle -->
+                <!-- Calendar Section -->
+                <div class="calendar-section">
+                    <div class="calendar-container">
+                        <!-- SVG Definitions -->
+                        <svg width="0" height="0" class="hidden">
+                            <defs>
+                                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="var(--gradient-1)" />
+                                    <stop offset="100%" stop-color="var(--gradient-2)" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+
+                        <header class="header">
+                            <div class="container">
+                                <div class="header-content">
+                                    <h1>TODO</h1>
+                                </div>
+                            </div>
+                        </header>
+
+                        <main class="main">
+                            <div class="container main-grid">
+                                <!-- Left Section: Todo List -->
+                                <div class="todo-section">
+                                    <!-- New Todo Form -->
+                                    <form class="todo-form">
+                                        <div class="checkbox-wrapper">
+                                            <div class="custom-checkbox"></div>
+                                        </div>
+                                        <input type="text" class="todo-input" placeholder="Create a new todo...">
+                                    </form>
+
+                                    <!-- Todo List -->
+                                    <div class="todo-list-wrapper">
+                                        <ul class="todo-list"></ul>
+
+                                        <!-- Todo Controls -->
+                                        <div class="todo-controls">
+                                            <span class="items-left">0 items left</span>
+                                            <div class="filter-buttons">
+                                                <button class="filter-btn active" data-filter="all">All</button>
+                                                <button class="filter-btn" data-filter="active">Active</button>
+                                                <button class="filter-btn" data-filter="completed">Completed</button>
+                                            </div>
+                                            <button class="clear-completed">Clear Completed</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="syncStatus" class="sync-status">
+                                        <span class="sync-message">Synced</span>
+                                    </div>
+                                </div>
+
+                                <!-- Right Section: Progress & Calendar -->
+                                <div class="progress-section">
+                                    <!-- Progress Circle -->
+                                    <div class="progress-container">
+                                        <div class="progress-circle">
+                                            <svg class="progress-ring" width="120" height="120">
+                                                <circle class="progress-ring-circle-bg" cx="60" cy="60" r="54" />
+                                                <circle class="progress-ring-circle" cx="60" cy="60" r="54" />
+                                            </svg>
+                                            <div class="progress-content">
+                                                <span class="progress-percentage">0%</span>
+                                                <span class="progress-label">Complete</span>
+                                            </div>
+                                        </div>
+                                        <div class="progress-stats">
+                                            <div class="stat-item">
+                                                <span class="stat-value" id="tasksCompleted">0</span>
+                                                <span class="stat-label">Completed</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-value" id="tasksRemaining">0</span>
+                                                <span class="stat-label">Remaining</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Enhanced Calendar View -->
+                                    <div class="calendar-container">
+                                        <div class="calendar-navigation">
+                                            <div class="calendar-controls">
+                                                <div class="calendar-date-picker">
+                                                    <input type="text" id="calendarDatePicker" readonly>
+                                                    <div class="mini-calendar" id="miniCalendar"></div>
+                                                </div>
+                                                <div class="calendar-nav-buttons">
+                                                    <button class="calendar-nav" id="prevMonth">&lt;</button>
+                                                    <button class="calendar-nav" id="nextMonth">&gt;</button>
+                                                </div>
+                                            </div>
+                                            <div class="calendar-view-container">
+                                                <div class="view-selector">
+                                                    <button class="calendar-view-btn active" data-view="month">Month</button>
+                                                    <button class="calendar-view-btn" data-view="week">Week</button>
+                                                    <button class="calendar-view-btn" data-view="day">Day</button>
+                                                    <button class="calendar-view-btn" data-jump="today">Today</button>
+                                                    <button class="calendar-view-btn" data-jump="work-week">Work Week</button>
+                                                    <button class="calendar-view-btn" data-jump="weekend">Weekend</button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Calendar Navigation -->
+                                        <div class="calendar-subheader">
+                                            <div class="calendar-period-stats">
+                                                <span class="period-total">Tasks: <span id="periodTotal">0</span></span>
+                                                <span class="period-completed">Done: <span id="periodCompleted">0</span></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Calendar Views -->
+                                        <div class="calendar-swipe-area">
+                                            <div class="swipe-overlay left">
+                                                <div class="swipe-arrow">←</div>
+                                            </div>
+                                            <div class="swipe-overlay right">
+                                                <div class="swipe-arrow">→</div>
+                                            </div>
+                                            <div class="swipe-indicator left">
+                                                <i class="fas fa-chevron-left"></i>
+                                            </div>
+                                            <div class="swipe-indicator right">
+                                                <i class="fas fa-chevron-right"></i>
+                                            </div>
+                                            <div class="calendar-views">
+                                                <!-- Month View -->
+                                                <div class="calendar-grid">
+                                                    <div class="calendar-weekday">Sun</div>
+                                                    <div class="calendar-weekday">Mon</div>
+                                                    <div class="calendar-weekday">Tue</div>
+                                                    <div class="calendar-weekday">Wed</div>
+                                                    <div class="calendar-weekday">Thu</div>
+                                                    <div class="calendar-weekday">Fri</div>
+                                                    <div class="calendar-weekday">Sat</div>
+                                                    <!-- Calendar days will be inserted by JavaScript -->
+                                                </div>
+
+                                                <!-- Day View -->
+                                                <div class="calendar-day-view" style="display: none;">
+                                                    <div class="day-schedule">
+                                                        <!-- Time slots will be inserted by JavaScript -->
+                                                    </div>
+                                                </div>
+
+                                                <!-- Week View -->
+                                                <div class="calendar-week-view" style="display: none;">
+                                                    <div class="week-timeline">
+                                                        <!-- Week timeline will be inserted by JavaScript -->
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Holiday Indicator -->
+                                        <div class="holiday-indicator">
+                                            <div class="holiday-icon">🎉</div>
+                                            <div class="holiday-info">
+                                                <span class="holiday-name"></span>
+                                                <span class="holiday-date"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Year Progress -->
+                                    <div class="year-progress">
+                                        <h3>Year Progress</h3>
+                                        <div class="year-progress-bar">
+                                            <div class="year-progress-fill"></div>
+                                        </div>
+                                        <div class="year-stats">
+                                            <span class="year-total">Total Tasks: <span id="yearTotal">0</span></span>
+                                            <span class="year-completed">Completed: <span id="yearCompleted">0</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Sidebar -->
+            <aside class="sidebar right-sidebar">
+                <div class="sidebar-section">
                     <div class="progress-container">
                         <div class="progress-circle">
                             <svg class="progress-ring" width="120" height="120">
@@ -132,105 +336,35 @@
                                 <span class="progress-label">Complete</span>
                             </div>
                         </div>
-                        <div class="progress-stats">
-                            <div class="stat-item">
-                                <span class="stat-value" id="tasksCompleted">0</span>
-                                <span class="stat-label">Completed</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-value" id="tasksRemaining">0</span>
-                                <span class="stat-label">Remaining</span>
-                            </div>
-                        </div>
                     </div>
+                </div>
 
-                    <!-- Enhanced Calendar View -->
-                    <div class="calendar-container">
-                        <div class="calendar-navigation">
-                            <div class="calendar-nav-group">
-                                <button class="calendar-nav" id="prevMonth">&lt;</button>
-                                <div class="calendar-date-picker">
-                                    <input type="text" id="calendarDatePicker" readonly>
-                                    <div class="mini-calendar" id="miniCalendar"></div>
-                                </div>
-                                <button class="calendar-nav" id="nextMonth">&gt;</button>
-                            </div>
-                            <div class="calendar-quick-nav">
-                                <button data-jump="today">Today</button>
-                                <button data-jump="work-week">Work Week</button>
-                                <button data-jump="weekend">Weekend</button>
-                            </div>
-                            <div class="calendar-view-options">
-                                <button class="calendar-view-btn active" data-view="month">Month</button>
-                                <button class="calendar-view-btn" data-view="week">Week</button>
-                                <button class="calendar-view-btn" data-view="day">Day</button>
-                            </div>
+                <div class="sidebar-section">
+                    <h3>Statistics</h3>
+                    <div class="stats-summary">
+                        <div class="stat-item">
+                            <span class="stat-value" id="tasksCompleted">0</span>
+                            <span class="stat-label">Completed</span>
                         </div>
-
-                        <!-- Calendar Navigation -->
-                        <div class="calendar-subheader">
-                            <div class="calendar-period-stats">
-                                <span class="period-total">Tasks: <span id="periodTotal">0</span></span>
-                                <span class="period-completed">Done: <span id="periodCompleted">0</span></span>
-                            </div>
-                        </div>
-
-                        <!-- Calendar Views -->
-                        <div class="calendar-views">
-                            <!-- Month View -->
-                            <div class="calendar-grid">
-                                <div class="calendar-weekday">Sun</div>
-                                <div class="calendar-weekday">Mon</div>
-                                <div class="calendar-weekday">Tue</div>
-                                <div class="calendar-weekday">Wed</div>
-                                <div class="calendar-weekday">Thu</div>
-                                <div class="calendar-weekday">Fri</div>
-                                <div class="calendar-weekday">Sat</div>
-                                <!-- Calendar days will be inserted by JavaScript -->
-                            </div>
-
-                            <!-- Day View -->
-                            <div class="calendar-day-view" style="display: none;">
-                                <div class="day-schedule">
-                                    <!-- Time slots will be inserted by JavaScript -->
-                                </div>
-                            </div>
-
-                            <!-- Week View -->
-                            <div class="calendar-week-view" style="display: none;">
-                                <div class="week-timeline">
-                                    <!-- Week timeline will be inserted by JavaScript -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Holiday Indicator -->
-                        <div class="holiday-indicator">
-                            <div class="holiday-icon">🎉</div>
-                            <div class="holiday-info">
-                                <span class="holiday-name"></span>
-                                <span class="holiday-date"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Year Progress -->
-                    <div class="year-progress">
-                        <h3>Year Progress</h3>
-                        <div class="year-progress-bar">
-                            <div class="year-progress-fill"></div>
-                        </div>
-                        <div class="year-stats">
-                            <span class="year-total">Total Tasks: <span id="yearTotal">0</span></span>
-                            <span class="year-completed">Completed: <span id="yearCompleted">0</span></span>
+                        <div class="stat-item">
+                            <span class="stat-value" id="tasksRemaining">0</span>
+                            <span class="stat-label">Remaining</span>
                         </div>
                     </div>
                 </div>
-            </div>
-        </main>
 
-        <!-- Confetti Canvas -->
-        <canvas id="confetti-canvas"></canvas>
+                <div class="sidebar-section">
+                    <h3>Year Progress</h3>
+                    <div class="year-progress-bar">
+                        <div class="year-progress-fill"></div>
+                    </div>
+                    <div class="year-stats">
+                        <span class="year-total">Total: <span id="yearTotal">0</span></span>
+                        <span class="year-completed">Done: <span id="yearCompleted">0</span></span>
+                    </div>
+                </div>
+            </aside>
+        </div>
     </div>
 
     <!-- Templates -->
@@ -263,51 +397,6 @@
             <div class="task-priority"></div>
         </div>
     </template>
-
-    <!-- Task Manager Header -->
-    <div class="task-manager-header">
-        <div class="search-filter-bar">
-            <div class="search-box">
-                <input type="text" id="taskSearch" placeholder="Search tasks...">
-                <button class="search-btn">
-                    <i class="fas fa-search"></i>
-                </button>
-            </div>
-            <div class="filter-dropdown">
-                <button class="filter-btn" id="filterDropdownBtn">
-                    <i class="fas fa-filter"></i>
-                    Filters
-                </button>
-                <div class="filter-menu" id="filterMenu">
-                    <div class="filter-section">
-                        <h4>Categories</h4>
-                        <div id="categoryFilters" class="filter-options">
-                            <!-- Categories will be added dynamically -->
-                        </div>
-                        <button class="add-category-btn" id="addCategoryBtn">
-                            <i class="fas fa-plus"></i> Add Category
-                        </button>
-                    </div>
-                    <div class="filter-section">
-                        <h4>Priority</h4>
-                        <div class="filter-options">
-                            <label><input type="checkbox" value="high"> High</label>
-                            <label><input type="checkbox" value="medium"> Medium</label>
-                            <label><input type="checkbox" value="low"> Low</label>
-                        </div>
-                    </div>
-                    <div class="filter-section">
-                        <h4>Status</h4>
-                        <div class="filter-options">
-                            <label><input type="checkbox" value="pending"> Pending</label>
-                            <label><input type="checkbox" value="completed"> Completed</label>
-                            <label><input type="checkbox" value="recurring"> Recurring</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Task Details Modal -->
     <div class="modal" id="taskDetailsModal">

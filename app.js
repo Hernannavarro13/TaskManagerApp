@@ -398,31 +398,141 @@ const progressCircumference = 2 * Math.PI * 54; // 54 is the radius of our circl
 progressRing.style.strokeDasharray = `${progressCircumference} ${progressCircumference}`;
 progressRing.style.strokeDashoffset = progressCircumference;
 
-// Calendar navigation
-prevMonthBtn.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() - 1);
-    renderCalendar();
-});
-
-nextMonthBtn.addEventListener('click', () => {
-    currentDate.setMonth(currentDate.getMonth() + 1);
-    renderCalendar();
-});
-
-// Calendar view switching
-calendarViewBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const view = btn.dataset.view;
-        switchCalendarView(view);
+// Calendar Navigation
+function initCalendarFeatures() {
+    // Set up date picker
+    updateDatePickerValue();
+    calendarDatePicker.addEventListener('click', toggleMiniCalendar);
+    document.addEventListener('click', (e) => {
+        if (!calendarDatePicker.contains(e.target) && !miniCalendar.contains(e.target)) {
+            miniCalendar.classList.remove('show');
+        }
     });
-});
 
-// Today button
-calendarTodayBtn.addEventListener('click', () => {
-    currentDate = new Date();
-    selectedDate = new Date();
+    // Navigation buttons
+    prevMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        updateCalendarView();
+    });
+
+    nextMonthBtn.addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        updateCalendarView();
+    });
+
+    // View switching and quick navigation
+    document.querySelectorAll('.calendar-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            const jump = btn.dataset.jump;
+
+            if (view) {
+                document.querySelectorAll('.calendar-view-btn[data-view]').forEach(b => 
+                    b.classList.toggle('active', b === btn)
+                );
+                switchCalendarView(view);
+            } else if (jump) {
+                handleQuickNav(jump);
+            }
+        });
+    });
+}
+
+function updateDatePickerValue() {
+    const options = { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' };
+    calendarDatePicker.value = selectedDate.toLocaleDateString(undefined, options);
+}
+
+function renderMiniCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startingDay = firstDay.getDay();
+    const monthLength = lastDay.getDate();
+    
+    const today = new Date();
+    const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+
+    let html = `
+        <div class="mini-calendar-header">
+            <span>${firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+        </div>
+        <div class="mini-calendar-weekdays">
+            ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                .map(day => `<div class="mini-weekday">${day}</div>`).join('')}
+        </div>
+        <div class="mini-calendar-days">
+    `;
+
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < startingDay; i++) {
+        html += '<div class="mini-day empty"></div>';
+    }
+
+    // Add the days of the month
+    for (let day = 1; day <= monthLength; day++) {
+        const date = new Date(year, month, day);
+        const isToday = isCurrentMonth && today.getDate() === day;
+        const isSelected = date.toDateString() === selectedDate.toDateString();
+        
+        html += `
+            <div class="mini-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
+                 data-date="${date.toISOString()}">
+                ${day}
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    miniCalendar.innerHTML = html;
+
+    // Add click event listeners to days
+    miniCalendar.querySelectorAll('.mini-day:not(.empty)').forEach(dayElement => {
+        dayElement.addEventListener('click', () => {
+            selectedDate = new Date(dayElement.dataset.date);
+            currentDate = new Date(selectedDate);
+            updateDatePickerValue();
+            updateCalendarView();
+            miniCalendar.classList.remove('show');
+        });
+    });
+}
+
+function handleQuickNav(type) {
+    const today = new Date();
+    
+    switch(type) {
+        case 'today':
+            selectedDate = today;
+            currentDate = new Date(today);
+            currentView = 'day';
+            break;
+            
+        case 'work-week':
+            selectedDate = today;
+            currentDate = new Date(today);
+            // Find Monday of current week
+            while (currentDate.getDay() !== 1) {
+                currentDate.setDate(currentDate.getDate() - 1);
+            }
+            currentView = 'week';
+            break;
+            
+        case 'weekend':
+            selectedDate = today;
+            currentDate = new Date(today);
+            // Find Saturday of current week
+            while (currentDate.getDay() !== 6) {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            currentView = 'week';
+            break;
+    }
+    
+    updateDatePickerValue();
     updateCalendarView();
-});
+}
 
 function switchCalendarView(view) {
     currentView = view;
@@ -693,146 +803,6 @@ function triggerConfetti() {
         colors: ['#57ddff', '#c058f3', '#484b6a'],
     });
 }
-
-// Initialize calendar features
-function initCalendarFeatures() {
-    // Set up date picker
-    updateDatePickerValue();
-    calendarDatePicker.addEventListener('click', toggleMiniCalendar);
-    
-    // Set up quick navigation
-    quickNavBtns.forEach(btn => {
-        btn.addEventListener('click', () => handleQuickNav(btn.dataset.jump));
-    });
-    
-    // Set up drag and drop
-    setupDragAndDrop();
-    
-    // Start current time indicator
-    updateCurrentTimeIndicator();
-    currentTimeInterval = setInterval(updateCurrentTimeIndicator, 60000); // Update every minute
-}
-
-// Date picker functions
-function updateDatePickerValue() {
-    const options = { month: 'long', year: 'numeric' };
-    calendarDatePicker.value = selectedDate.toLocaleDateString('default', options);
-}
-
-function toggleMiniCalendar() {
-    if (miniCalendar.classList.contains('show')) {
-        miniCalendar.classList.remove('show');
-    } else {
-        renderMiniCalendar();
-        miniCalendar.classList.add('show');
-    }
-}
-
-function renderMiniCalendar() {
-    // Similar to main calendar but more compact
-    // Implementation here...
-}
-
-// Quick navigation functions
-function handleQuickNav(type) {
-    const today = new Date();
-    switch(type) {
-        case 'today':
-            selectedDate = today;
-            currentView = 'day';
-            break;
-        case 'work-week':
-            selectedDate = today;
-            currentView = 'week';
-            // Adjust view to show Monday-Friday
-            break;
-        case 'weekend':
-            selectedDate = today;
-            currentView = 'week';
-            // Adjust view to show Saturday-Sunday
-            break;
-    }
-    updateCalendarView();
-}
-
-// Drag and drop functionality
-function setupDragAndDrop() {
-    document.addEventListener('dragstart', handleDragStart);
-    document.addEventListener('dragend', handleDragEnd);
-    document.addEventListener('dragover', handleDragOver);
-    document.addEventListener('drop', handleDrop);
-}
-
-function handleDragStart(e) {
-    const taskItem = e.target.closest('.task-item');
-    if (!taskItem) return;
-    
-    draggedTask = taskItem;
-    taskItem.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-}
-
-function handleDragEnd(e) {
-    if (draggedTask) {
-        draggedTask.classList.remove('dragging');
-        draggedTask = null;
-    }
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
-    const timeSlot = e.target.closest('.time-slot') || e.target.closest('.week-timeline-slot');
-    if (timeSlot) {
-        timeSlot.classList.add('drag-over');
-    }
-}
-
-function handleDrop(e) {
-    e.preventDefault();
-    const timeSlot = e.target.closest('.time-slot') || e.target.closest('.week-timeline-slot');
-    if (timeSlot && draggedTask) {
-        const taskId = draggedTask.dataset.id;
-        const newTime = timeSlot.dataset.time;
-        updateTaskTime(taskId, newTime);
-    }
-    
-    // Remove drag-over class from all elements
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-}
-
-// Current time indicator
-function updateCurrentTimeIndicator() {
-    const now = new Date();
-    const currentTimeIndicators = document.querySelectorAll('.current-time-indicator');
-    
-    currentTimeIndicators.forEach(indicator => {
-        const top = (now.getHours() * 60 + now.getMinutes()) * (600 / 1440); // 600px height / 1440 minutes in day
-        indicator.style.top = `${top}px`;
-    });
-}
-
-// Update task time
-async function updateTaskTime(taskId, newTime) {
-    const todoIndex = todos.findIndex(todo => todo.id === parseInt(taskId));
-    if (todoIndex === -1) return;
-    
-    const todo = todos[todoIndex];
-    const todoDate = new Date(todo.createdAt);
-    const [hours, minutes] = newTime.split(':');
-    
-    todoDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    todo.createdAt = todoDate.toISOString();
-    
-    await saveTodos();
-    updateCalendarView();
-}
-
-// Clean up on page unload
-window.addEventListener('beforeunload', () => {
-    if (currentTimeInterval) {
-        clearInterval(currentTimeInterval);
-    }
-});
 
 // Initialize calendar features when app starts
 document.addEventListener('DOMContentLoaded', initCalendarFeatures);
@@ -1405,11 +1375,149 @@ function calculateLongestStreak(todos) {
     return maxStreak;
 }
 
-// Initialize additional features when app starts
+// Swipe Navigation
+function initSwipeNavigation() {
+    const swipeArea = document.querySelector('.calendar-swipe-area');
+    const leftOverlay = document.querySelector('.swipe-overlay.left');
+    const rightOverlay = document.querySelector('.swipe-overlay.right');
+    const leftIndicator = document.querySelector('.swipe-indicator.left');
+    const rightIndicator = document.querySelector('.swipe-indicator.right');
+    
+    let touchStartX = 0;
+    let touchEndX = 0;
+    let isDragging = false;
+    let startTime = 0;
+    
+    // Touch events
+    swipeArea.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        startTime = Date.now();
+        isDragging = true;
+    });
+    
+    swipeArea.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        
+        touchEndX = e.touches[0].clientX;
+        const deltaX = touchEndX - touchStartX;
+        
+        // Show appropriate indicator based on swipe direction
+        leftIndicator.classList.toggle('active', deltaX > 50);
+        rightIndicator.classList.toggle('active', deltaX < -50);
+    });
+    
+    swipeArea.addEventListener('touchend', () => {
+        const deltaX = touchEndX - touchStartX;
+        const deltaTime = Date.now() - startTime;
+        
+        // Only navigate if the swipe was fast enough and long enough
+        if (deltaTime < 300 && Math.abs(deltaX) > 50) {
+            if (deltaX > 0) {
+                navigateToPreviousDay();
+            } else {
+                navigateToNextDay();
+            }
+        }
+        
+        // Reset indicators and state
+        leftIndicator.classList.remove('active');
+        rightIndicator.classList.remove('active');
+        isDragging = false;
+    });
+    
+    // Mouse events (for desktop)
+    swipeArea.addEventListener('mousedown', (e) => {
+        touchStartX = e.clientX;
+        startTime = Date.now();
+        isDragging = true;
+    });
+    
+    swipeArea.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        touchEndX = e.clientX;
+        const deltaX = touchEndX - touchStartX;
+        
+        // Show appropriate indicator based on swipe direction
+        leftIndicator.classList.toggle('active', deltaX > 50);
+        rightIndicator.classList.toggle('active', deltaX < -50);
+    });
+    
+    swipeArea.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        
+        const deltaX = touchEndX - touchStartX;
+        const deltaTime = Date.now() - startTime;
+        
+        // Only navigate if the swipe was fast enough and long enough
+        if (deltaTime < 300 && Math.abs(deltaX) > 50) {
+            if (deltaX > 0) {
+                navigateToPreviousDay();
+            } else {
+                navigateToNextDay();
+            }
+        }
+        
+        // Reset indicators and state
+        leftIndicator.classList.remove('active');
+        rightIndicator.classList.remove('active');
+        isDragging = false;
+    });
+    
+    // Click events for overlay arrows
+    leftOverlay.addEventListener('click', navigateToPreviousDay);
+    rightOverlay.addEventListener('click', navigateToNextDay);
+    
+    // Cancel dragging if mouse leaves the area
+    swipeArea.addEventListener('mouseleave', () => {
+        if (isDragging) {
+            leftIndicator.classList.remove('active');
+            rightIndicator.classList.remove('active');
+            isDragging = false;
+        }
+    });
+}
+
+function navigateToNextDay() {
+    selectedDate.setDate(selectedDate.getDate() + 1);
+    currentDate = new Date(selectedDate);
+    updateDatePickerValue();
+    updateCalendarView();
+    
+    // Add a subtle animation
+    const views = document.querySelector('.calendar-views');
+    views.style.transform = 'translateX(-20px)';
+    views.style.opacity = '0.5';
+    
+    setTimeout(() => {
+        views.style.transform = 'translateX(0)';
+        views.style.opacity = '1';
+    }, 50);
+}
+
+function navigateToPreviousDay() {
+    selectedDate.setDate(selectedDate.getDate() - 1);
+    currentDate = new Date(selectedDate);
+    updateDatePickerValue();
+    updateCalendarView();
+    
+    // Add a subtle animation
+    const views = document.querySelector('.calendar-views');
+    views.style.transform = 'translateX(20px)';
+    views.style.opacity = '0.5';
+    
+    setTimeout(() => {
+        views.style.transform = 'translateX(0)';
+        views.style.opacity = '1';
+    }, 50);
+}
+
+// Initialize swipe navigation when app starts
 document.addEventListener('DOMContentLoaded', () => {
     initApp().then(() => {
         initAdditionalFeatures();
         setupSearchAndFilter();
         setupTaskDetailsModal();
+        initSwipeNavigation();
     });
 });
