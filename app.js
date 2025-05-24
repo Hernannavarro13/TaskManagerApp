@@ -584,37 +584,49 @@ function updateItemsLeft() {
 }
 
 // Handle Register Form Submission
-registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); // Prevent form from reloading the page
+async function handleRegister(e) {
+    e.preventDefault();
+    e.stopPropagation();
 
     const username = document.getElementById('usernameRegister').value;
     const password = document.getElementById('passwordRegister').value;
+    const startColor = document.getElementById('startColor').value;
+    const middleColor = document.getElementById('middleColor').value;
+    const endColor = document.getElementById('endColor').value;
 
-    const payload = { username, password };
+    const payload = {
+        username,
+        password,
+        gradient: {
+            isEnabled: true,
+            startColor,
+            middleColor,
+            endColor
+        }
+    };
 
     try {
-        const response = await fetch(`${API_URL}/register`, {
-            method: 'POST',
+        const response = await axios.post(`${API_URL}/register`, payload, {
             headers: {
                 'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+            }
         });
 
-        const data = await response.json();
-        if (response.ok) {
+        if (response.status === 201) {
             alert('Registration successful! Please log in.');
+            // Switch to login tab
+            document.querySelector('[data-tab="login"]').click();
         } else {
-            alert(data.message || 'Registration failed');
+            alert(response.data.message || 'Registration failed');
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Registration failed');
+        console.error('Registration error:', error);
+        alert(error.response?.data?.message || 'Registration failed');
     }
-});
+}
 
 // Handle Login Form Submission
-loginForm.addEventListener('submit', async (e) => {
+async function handleLogin(e) {
     e.preventDefault();
     e.stopPropagation();
 
@@ -629,6 +641,9 @@ loginForm.addEventListener('submit', async (e) => {
 
         if (response.data.token) {
             localStorage.setItem('authToken', response.data.token);
+            if (response.data.settings) {
+                localStorage.setItem('userSettings', JSON.stringify(response.data.settings));
+            }
             showTodoApp();
             await initApp();
         } else {
@@ -636,10 +651,54 @@ loginForm.addEventListener('submit', async (e) => {
         }
     } catch (error) {
         console.error('Login error:', error);
-        alert('Login failed: ' + (error.response?.data?.message || 'Unknown error'));
+        alert(error.response?.data?.message || 'Login failed');
+    }
+}
+
+// Setup auth related event listeners
+function setupAuthEventListeners() {
+    const registerForm = document.getElementById('registerForm');
+    const loginForm = document.getElementById('loginForm');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
     }
     
-    return false;
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    
+    // Handle tab switching
+    authTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetForm = tab.dataset.tab;
+            
+            // Update active tab
+            authTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Show corresponding form
+            document.getElementById('loginForm').style.display = targetForm === 'login' ? 'flex' : 'none';
+            document.getElementById('registerForm').style.display = targetForm === 'register' ? 'flex' : 'none';
+            
+            // Move the slider
+            document.querySelector('.auth-tab-slider').classList.toggle('register', targetForm === 'register');
+        });
+    });
+}
+
+// Initialize the app
+document.addEventListener('DOMContentLoaded', () => {
+    setupAuthEventListeners();
+    const authToken = localStorage.getItem('authToken');
+    
+    if (authToken) {
+        showTodoApp();
+        initApp();
+    } else {
+        showAuthScreen();
+    }
 });
 
 // Check if user is logged in
