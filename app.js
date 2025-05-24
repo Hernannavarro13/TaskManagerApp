@@ -70,30 +70,27 @@ const API_URL = 'https://taskmanagerapp-todo-server.onrender.com';
 
 // Initialize app
 async function initApp() {
-    // Check authentication
-    const authToken = localStorage.getItem('authToken');
-    if (!authToken) {
-        showAuthScreen();
+    // Check authentication using Auth module
+    if (!await window.Auth.verifyToken()) {
         return;
     }
 
-    try {
-        // Verify token is still valid
-        await axios.get(`${API_URL}/verify-token`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
-        
-        showTodoApp();
-        await loadTodos();
-        setupEventListeners();
-        updateProgress();
-        renderCalendar();
-    } catch (error) {
-        console.error('Token validation failed:', error);
-        showAuthScreen();
-    }
+    // Set theme
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+
+    // Load initial data
+    await Promise.all([
+        loadTodos(),
+        loadCategories(),
+        loadHolidays()
+    ]);
+
+    // Initialize features
+    setupEventListeners();
+    initCalendarFeatures();
+    updateProgress();
+    renderCalendar();
 }
 
 function showAuthScreen() {
@@ -107,19 +104,24 @@ function showTodoApp() {
 }
 
 function setupEventListeners() {
-    // Remove the old form listener and add a new one
-    todoForm.removeEventListener('submit', addTodo);
-    todoForm.addEventListener('submit', handleTodoSubmit);
+    // Remove any existing listeners
+    const newTodoForm = document.querySelector('.todo-form');
+    const clonedForm = newTodoForm.cloneNode(true);
+    newTodoForm.parentNode.replaceChild(clonedForm, newTodoForm);
     
-    // Update todo input handling
-    todoInput.removeEventListener('keypress', addTodo);
-    todoInput.addEventListener('keypress', async (e) => {
+    // Add new listeners
+    clonedForm.addEventListener('submit', handleTodoSubmit);
+    
+    const newTodoInput = clonedForm.querySelector('.todo-input');
+    newTodoInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevent form submission
+            e.preventDefault();
+            e.stopPropagation();
             await handleTodoSubmit(e);
+            return false;
         }
     });
-    
+
     // Todo list interactions
     todoList.addEventListener('click', handleTodoClick);
     
@@ -278,41 +280,38 @@ function setSyncStatus(status, message = '') {
     }
 }
 
-// New form submission handler
+// Update form submission handler
 async function handleTodoSubmit(e) {
-    e.preventDefault(); // Prevent form submission
-    e.stopPropagation(); // Stop event bubbling
-    
-    // Check authentication before proceeding
-    const authToken = localStorage.getItem('authToken');
-    if (!authToken) {
-        showAuthScreen();
-        return;
-    }
-    
-    await addTodo(e);
-    return false; // Prevent any default form behavior
-}
-
-// Update addTodo function
-async function addTodo(e) {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
     }
-    
+
+    const todoInput = document.querySelector('.todo-input');
     const todoText = todoInput.value.trim();
-    if (todoText.length === 0) return;
     
-    const userId = getUserId();
-    if (!userId) {
-        showAuthScreen();
+    if (todoText.length === 0) {
+        return false;
+    }
+
+    await addTodo(todoText);
+    return false;
+}
+
+// Update addTodo to accept text directly
+async function addTodo(todoText) {
+    if (!todoText) return;
+    
+    // Verify authentication
+    if (!await window.Auth.verifyToken()) {
         return;
     }
     
+    const todoInput = document.querySelector('.todo-input');
+    const todoForm = document.querySelector('.todo-form');
+    
     const newTodo = {
         id: Date.now(),
-        userId: userId,
         text: todoText,
         completed: false,
         createdAt: new Date().toISOString(),
@@ -320,24 +319,9 @@ async function addTodo(e) {
     };
     
     // Show loading state
-    const submitButton = todoForm.querySelector('button[type="submit"]') || todoForm;
-    const originalContent = submitButton.innerHTML;
-    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    submitButton.disabled = true;
+    todoForm.classList.add('loading');
     
     try {
-        // Verify token is still valid
-        try {
-            await axios.get(`${API_URL}/verify-token`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                }
-            });
-        } catch (error) {
-            showAuthScreen();
-            return;
-        }
-        
         // Add to local array first for immediate feedback
         todos.unshift(newTodo);
         renderTodos();
@@ -367,11 +351,10 @@ async function addTodo(e) {
         updateCalendarView();
         
         // Show success feedback
-        const todoForm = document.querySelector('.todo-form');
         todoForm.classList.add('success');
         setTimeout(() => todoForm.classList.remove('success'), 500);
         
-        // Trigger confetti for added delight
+        // Trigger confetti
         triggerConfetti();
         
     } catch (error) {
@@ -381,19 +364,13 @@ async function addTodo(e) {
         renderTodos();
         
         if (error.response?.status === 401) {
-            showAuthScreen();
+            window.Auth.showAuthScreen();
         } else {
             alert('Failed to add todo. Please try again.');
         }
     } finally {
-        // Reset button state
-        if (submitButton) {
-            submitButton.innerHTML = originalContent;
-            submitButton.disabled = false;
-        }
+        todoForm.classList.remove('loading');
     }
-    
-    return false; // Prevent form submission
 }
 
 function handleTodoClick(e) {
@@ -1762,3 +1739,16 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Listen for auth events
+window.addEventListener('auth:login:success', async () => {
+    await initApp();
+});
+
+window.addEventListener('auth:logout', () => {
+    todos = [];
+    renderTodos();
+});
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', initApp);
