@@ -146,6 +146,14 @@ function setupEventListeners() {
             }
         });
     });
+
+    // Add enter key handler for todo input
+    todoInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            await addTodo(e);
+        }
+    });
 }
 
 function filterTasks(filters = {}) {
@@ -265,7 +273,7 @@ function setSyncStatus(status, message = '') {
 
 // Todo Functions
 async function addTodo(e) {
-    e.preventDefault();
+    e.preventDefault(); // Prevent form submission from reloading
     
     const todoText = todoInput.value.trim();
     if (todoText.length === 0) return;
@@ -285,20 +293,36 @@ async function addTodo(e) {
         categoryId: null
     };
     
+    // Show loading state
+    const submitButton = todoForm.querySelector('button[type="submit"]') || todoForm;
+    const originalContent = submitButton.innerHTML;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    submitButton.disabled = true;
+    
     try {
-        // Save to server first
+        // Add to local array first for immediate feedback
+        todos.unshift(newTodo);
+        renderTodos();
+        
+        // Clear input immediately
+        todoInput.value = '';
+        
+        // Save to server
         const response = await axios.post(`${API_URL}/todos`, newTodo, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('authToken')}`
             }
         });
         
-        // Use the server-generated ID if provided
-        const savedTodo = response.data;
-        todos.unshift(savedTodo || newTodo);
+        // Update with server response if needed
+        if (response.data && response.data.id) {
+            const index = todos.findIndex(t => t.id === newTodo.id);
+            if (index !== -1) {
+                todos[index] = { ...todos[index], ...response.data };
+            }
+        }
         
-        // Clear input and update UI
-        todoInput.value = '';
+        // Update UI
         filterTasks();
         updateItemsLeft();
         updateProgress();
@@ -308,9 +332,22 @@ async function addTodo(e) {
         const todoForm = document.querySelector('.todo-form');
         todoForm.classList.add('success');
         setTimeout(() => todoForm.classList.remove('success'), 500);
+        
+        // Trigger confetti for added delight
+        triggerConfetti();
+        
     } catch (error) {
         console.error('Failed to add todo:', error);
+        // Remove the todo if server save failed
+        todos = todos.filter(t => t.id !== newTodo.id);
+        renderTodos();
         alert('Failed to add todo. Please try again.');
+    } finally {
+        // Reset button state
+        if (submitButton) {
+            submitButton.innerHTML = originalContent;
+            submitButton.disabled = false;
+        }
     }
 }
 
@@ -1651,3 +1688,32 @@ document.querySelector('.user-menu-btn').addEventListener('click', () => {
         logout();
     }
 });
+
+// Add this CSS class for loading state
+const style = document.createElement('style');
+style.textContent = `
+    .todo-form.loading {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+    
+    .todo-form.success {
+        animation: successPulse 0.5s ease;
+    }
+    
+    @keyframes successPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+    
+    .fa-spinner {
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
